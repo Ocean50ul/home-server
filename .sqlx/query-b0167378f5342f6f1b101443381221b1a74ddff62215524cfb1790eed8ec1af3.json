@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM albums WHERE name = ? LIMIT 1);",
+  "describe": {
+    "columns": [
+      {
+        "name": "EXISTS(SELECT 1 FROM albums WHERE name = ? LIMIT 1)",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b0167378f5342f6f1b101443381221b1a74ddff62215524cfb1790eed8ec1af3"
+}

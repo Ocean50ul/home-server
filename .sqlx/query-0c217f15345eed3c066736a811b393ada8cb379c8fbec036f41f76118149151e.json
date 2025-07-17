@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO albums(id, name, artist_id, year)\n                VALUES (?, ?, ?, ?)\n                RETURNING id;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c217f15345eed3c066736a811b393ada8cb379c8fbec036f41f76118149151e"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM tracks WHERE tracks.file_path = ? LIMIT 1);",
+  "describe": {
+    "columns": [
+      {
+        "name": "EXISTS(SELECT 1 FROM tracks WHERE tracks.file_path = ? LIMIT 1)",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bd5fa5063a3ee360c5e260d0a6ea65dc64eb71f37a72a3bfddf61e31e2e99ff1"
+}

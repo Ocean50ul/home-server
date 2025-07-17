@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Futuristic Media Server</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <h1>Retro Futuristic Media Server</h1>
+    </header>
+
+    <button id="startAudio">Start Audio</button>
+
+    <!-- Navigation Bar (Folder-like options) -->
+    <nav class="navbar">
+        <div class="folder" id="music">Music</div>
+        <div class="folder" id="videos">Videos</div>
+        <div class="folder" id="files">Files</div>
+    </nav>
+
+    <!-- Music Section -->
+    <section id="music-section" class="content-section">
+    
+        <audio id="player" controls>
+            <source src="/static/mp3/0.mp3" type="audio/mp3" />
+          </audio>
+    
+        <!-- Song List -->
+        <div class="song-list">
+            <ul class="songs-ul">
+                <!-- More songs can be added here -->
+            </ul>
+        </div>
+    </section>
+
+    <!-- Videos Section -->
+    <section id="videos-section" class="content-section">
+        <h2>Videos</h2>
+        <p>This is the Videos section</p>
+        <audio id="player" controls>
+            <source src="/test_stream" type="audio/flac" />
+        </audio>
+    </section>
+
+    <!-- Files Section -->
+    <section id="files-section" class="content-section">
+        <h2>Files</h2>
+        <p>This is the Files section</p>
+    </section>
+
+    <footer>
+        <p>Powered by Rust and Axum</p>
+    </footer>
+
+    <script src="/static/script.js"></script>  <!-- Include JavaScript file -->
+</body>
+</html>

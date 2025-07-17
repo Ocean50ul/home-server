@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO tracks(id, name, album_id, duration, file_path, file_size, file_type, uploaded, date_added) \n                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n                RETURNING id;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "20d415bfde76589655ee63c7dd6a54d675741f4d19c2e6d3dc3d3acb0fed80fe"
+}
