@@ -1,4 +1,6 @@
-pub mod commands;
+pub mod fixtures;
+
+use std::{io, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -10,7 +12,14 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
+    Fixtures {
+        #[command(subcommand)]
+        action: FixtureActions
+    }
+}
+
+#[derive(Subcommand)]
+pub enum FixtureActions {
     Prepare,
-    Raw,
-    Test
+    Cleanup
 }
