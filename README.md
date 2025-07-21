@@ -1,4 +1,4 @@
-##Running Tests.
+**Running Tests.**
 
 To run the suit, you need first to prepare fixtures. That includes downloading audio files from freesound.org and creating dirs and files with stripped premissions.
 
