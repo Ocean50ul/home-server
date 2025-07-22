@@ -1,4 +1,8 @@
-use std::{env::{self, VarError}, fs, path::{Path, PathBuf}, process::Command};
+use std::{collections::{hash_map, HashMap}, env::{self, VarError}, fs, path::{Path, PathBuf}, process::Command};
+use serde::{Deserialize, Serialize};
+use serde_json;
+
+use crate::domain::audiofile::AudioFileType;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FixturesSetupError {
@@ -16,13 +20,83 @@ pub enum FixturesSetupError {
     InvalidPath(String),
 
     #[error("Fixtures setup has failed. Icacls returned with an error: {0}")]
-    IcaclsCommandError(String)
+    IcaclsCommandError(String),
+
+    #[error("Fixtures setup has failed. Error during fixtures state serialization: {0}")]
+    FixturesCacheSerializationError(#[from] serde_json::Error),
+
+    #[error("Fixtures setup has failed. Error during fixtures creation - unsopporetd type: {0}")]
+    UnsupportedFileType(String),
+
+    #[error("Fixtures setup has failed. Ffmpeg returned with an error: {0}")]
+    FfmpegCommandError(String)
 }
 
+pub struct AudioFixture {
+    pub path: String,
+    pub metadata: HashMap<String, String>
+}
+
+impl AudioFixture {
+    pub fn new(audio_type: AudioFileType) -> Result<AudioFixture, FixturesSetupError> {
+        let (path, metadata) = match audio_type {
+            AudioFileType::Flac => (
+                String::from("./test_fixtures/files/flac_valid_metadata.flac"),
+                HashMap::from([
+                    ("title".to_string(), "FLAC test title".to_string()),
+                    ("artist".to_string(), "FLAC test artist".to_string()),
+                    ("album".to_string(), "FLAC test album".to_string()),
+                    ("genre".to_string(), "FLAC test genre".to_string()),
+                    ("date".to_string(), "2023".to_string()),
+                    ("track".to_string(), "1/1".to_string()),
+                    ("comment".to_string(), "FLAC test comment".to_string())
+                ])
+            ),
+
+            AudioFileType::Mp3 => (
+                String::from("./test_fixtures/files/mp3_valid_metadata.mp3"),
+                HashMap::from([
+                    ("title".to_string(), "MP3 test title".to_string()),
+                    ("artist".to_string(), "MP3 test artist".to_string()),
+                    ("album".to_string(), "MP3 test album".to_string()),
+                    ("genre".to_string(), "MP3 test genre".to_string()),
+                    ("date".to_string(), "2023".to_string()),
+                    ("track".to_string(), "1".to_string()),
+                    ("comment".to_string(), "MP3 test comment".to_string())
+                ])
+            ),
+
+            AudioFileType::Wav => (
+                String::from("./test_fixtures/files/wav_valid_metadata.wav"),
+                HashMap::from([
+                    ("title".to_string(), "WAV test title".to_string()),
+                    ("artist".to_string(), "WAV test artist".to_string()),
+                    ("album".to_string(), "WAV test album".to_string()),
+                    ("genre".to_string(), "WAV test genre".to_string()),
+                    ("date".to_string(), "2023".to_string()),
+                    ("track".to_string(), "1".to_string()),
+                    ("comment".to_string(), "WAV test comment".to_string())
+                ])
+            ),
+
+            unsupported => return Err(FixturesSetupError::UnsupportedFileType(unsupported.as_str().to_string()))
+        };
+
+        Ok(
+            Self {
+                path,
+                metadata
+            }
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct FixturesContext {
     fixture_path: PathBuf,
     stripped_files: Vec<PathBuf>,
-    stripped_dirs: Vec<PathBuf>
+    stripped_dirs: Vec<PathBuf>,
+    fixtures_cache_path: PathBuf
 }
 
 impl FixturesContext {
@@ -30,22 +104,21 @@ impl FixturesContext {
         Self {
             fixture_path: PathBuf::from("./test_fixtures"),
             stripped_files: Vec::new(),
-            stripped_dirs: Vec::new()
+            stripped_dirs: Vec::new(),
+            fixtures_cache_path: PathBuf::from("./test_fixtures/fixtures_state.json")
         }
     }
 
     pub fn cache(&self) -> Result<(), FixturesSetupError> {
-        let cache_path = self.fixture_path.join("cache.txt");
-
-        for dir in &self.stripped_dirs {
-            fs::write(&cache_path, dir.to_string_lossy().as_bytes())?;
-        }
-
-        for file in &self.stripped_files {
-            fs::write(&cache_path, file.to_string_lossy().as_bytes())?;
-        }
-
+        let json_str = serde_json::to_string(self)?;
+        
+        fs::write(&self.fixtures_cache_path, json_str.as_bytes())?;
+        
         Ok(())
+    }
+
+    pub fn cache_exists(&self) -> bool {
+        self.fixtures_cache_path.exists()
     }
 }
 
@@ -120,35 +193,67 @@ fn restore_permissions(path: &Path) -> Result<(), FixturesSetupError> {
 }
 
 pub fn create_fixtures(fctx: &mut FixturesContext) -> Result<(), FixturesSetupError> {
-    if fctx.fixture_path.join("cache.txt").exists() {
+    if fctx.fixtures_cache_path.exists() {
+        // right now assume that if cache exist, then all the fixutres are also presented.
         return Ok(());
     }
 
-    fs::create_dir(&fctx.fixture_path)?;
+    fs::create_dir_all(fctx.fixture_path.join("/files"))?;
+    fs::create_dir_all(fctx.fixture_path.join("/dirs/inaccessible_dir"))?;
 
-    fs::create_dir(fctx.fixture_path.join("/dirs"))?;
-    fs::create_dir(fctx.fixture_path.join("/files"))?;
-
-    fs::create_dir(fctx.fixture_path.join("/dirs/inaccessible_dir"))?;
-
-    fs::create_dir(fctx.fixture_path.join("/dirs/accessible_dir"))?;
-    fs::create_dir(fctx.fixture_path.join("/dirs/accessible_dir/inaccessible_dir"))?;
+    fs::create_dir_all(fctx.fixture_path.join("/dirs/accessible_dir/inaccessible_dir"))?;
 
     strip_permissions(&fctx.fixture_path.join("/dirs/inaccessible_dir/"))?;
     strip_permissions(&fctx.fixture_path.join("/dirs/accessible_dir/inaccessible_dir"))?;
 
-    get_audio_files(&fctx.fixture_path.join("/files"));
+    create_audio_files()?;
 
     fctx.cache()?;
 
     Ok(())
 }
 
-fn get_audio_files(destination: &Path) -> () {
+pub fn create_audio_files() -> Result<(), FixturesSetupError> {
+    let fixtures = vec![
+        AudioFixture::new(AudioFileType::Flac)?,
+        AudioFixture::new(AudioFileType::Mp3)?,
+        AudioFixture::new(AudioFileType::Wav)?
+    ];
 
+    for fix in fixtures {
+        let mut cmd = Command::new("./ffmpeg/ffmpeg.exe");
+
+        let mut args = vec![
+            "-y".to_string(),
+            "-f".to_string(), "lavfi".to_string(),
+            "-i".to_string(), "sine=frequency=880:duration=5".to_string(),
+        ];
+
+        for (key, value) in fix.metadata {
+            args.push("-metadata".to_string());
+            args.push(format!("{}={}", key, value));
+        }
+
+        args.push(fix.path);
+
+        let output = cmd
+            .args(&args)
+            .output()?;
+
+        if !output.status.success() {
+
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(FixturesSetupError::FfmpegCommandError(stderr.to_string()));
+        }
 }
 
-pub fn cleanup(fctx: &mut FixturesContext) -> () {
+    Ok(())
+}
+
+pub fn cleanup() -> Result<(), FixturesSetupError> {
+    let json_str = fs::read_to_string(PathBuf::from("./test_fixtures/fixtures_state.json"))?;
+    let mut fctx: FixturesContext = serde_json::from_str(&json_str)?;
+
     // Restore files first
     for file in &fctx.stripped_files {
         if let Err(err) = restore_permissions(file) {
@@ -185,4 +290,8 @@ pub fn cleanup(fctx: &mut FixturesContext) -> () {
             }
         }
     }
+
+    fs::remove_dir_all(fctx.fixture_path)?;
+
+    Ok(())
 }
