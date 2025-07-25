@@ -1,0 +1,11 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+path = "./data/db/database.db"
+
+[media]
+music_path = "./data/media/music"
+video_path = "./data/media/video"
+filesharing_path = "./data/filesharing"

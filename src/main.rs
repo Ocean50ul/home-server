@@ -1,11 +1,11 @@
-use axum::{response::{Html, IntoResponse}, routing::{get, get_service}, Router};
 use clap::Parser;
-use tower_http::services::{ServeDir};
+use anyhow::Error;
 
-use home_server::cli::{Cli, Command, FixtureActions};
+use home_server::{cli::{Cli, Command, FixtureActions, ServerActions}, utils::db::get_application_db, web::routes::create_router};
+
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -19,20 +19,24 @@ async fn main() {
                     println!("hello from cealnup");
                 }
             }
+        },
+
+        Command::Server { action } => {
+            match action {
+                ServerActions::DryStart => {
+                    let db = get_application_db().await?;
+                    let app = create_router(db.get_pool()).await?;
+
+                    let address = "0.0.0.0:8080";
+                    let listener = tokio::net::TcpListener::bind(address).await?;
+
+                    println!("Listening on http://{}", address);
+
+                    axum::serve(listener, app).await?;
+                }
+            }
         }
     }
-}
 
-async fn run_app() -> Result<(), std::io::Error> {
-    let app = Router::new()
-        .route("/", get(root))
-        .nest_service("/static", get_service(ServeDir::new("./static")));
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-
-    axum::serve(listener, app).await
-}
-
-async fn root() -> impl IntoResponse {
-    Html(include_str!("../static/index.html"))
+    Ok(())
 }

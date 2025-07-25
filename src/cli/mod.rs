@@ -13,6 +13,11 @@ pub enum Command {
     Fixtures {
         #[command(subcommand)]
         action: FixtureActions
+    },
+
+    Server {
+        #[command(subcommand)]
+        action: ServerActions
     }
 }
 
@@ -20,4 +25,9 @@ pub enum Command {
 pub enum FixtureActions {
     Prepare,
     Cleanup
+}
+
+#[derive(Subcommand)]
+pub enum ServerActions {
+    DryStart
 }

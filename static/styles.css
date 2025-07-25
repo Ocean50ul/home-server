@@ -55,7 +55,7 @@ h1, h2 {
 
 /* Content Sections */
 .content-section {
-    display: flex;
+    flex-direction: column;
     text-align: center;
     width: 100%;
     max-width: 800px;
@@ -115,6 +115,14 @@ footer {
     margin-top: 20px;
     width: 100%;
     max-width: 800px;
+}
+
+#videos-section {
+    display: none;
+}
+
+#files-section {
+    display: none;
 }
 
 /* Winamp-style Music Player */
@@ -230,4 +238,12 @@ footer {
 
 .song-list li {
     padding: 8px;
+}
+
+footer {
+    /* This is the magic part */
+    position: fixed;
+
+    /* These properties pin it to the bottom of the browser window */
+    bottom: 10px;
 }
