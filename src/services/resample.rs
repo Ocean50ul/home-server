@@ -146,7 +146,7 @@ pub trait Resampler {
     fn resample(&self, input_path: &Path, output_path: &Path, file_type: &AudioFileType) -> Result<(), ResampleError>;
 }
 
-struct FfmpegResampler {
+pub struct FfmpegResampler {
     ffmpeg_path: PathBuf
 }
 

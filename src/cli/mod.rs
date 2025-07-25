@@ -1,7 +1,5 @@
 pub mod fixtures;
 
-use std::{io, path::PathBuf};
-
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
