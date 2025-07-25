@@ -1,7 +1,12 @@
+**Server startup**
+
+`cargo run server dry-start` will run the server without scaning audio lib, resampling and synchronizing DB state with the music lib state.
+
 **Running Tests.**
 
 To run the tests suit, you need first to prepare fixtures, which includes creating dummy audio files and folders with stripped permissions.
 
+// FIXTURES CREATION WORKING YET
 `cargo run prepare-fixtures` will create all the necessary things inside ./test-fixtures.
 `cargo run cleanup-fixtures` will return all the permissions and delete all the fixtures. 
 
