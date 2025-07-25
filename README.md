@@ -20,4 +20,4 @@ For now, the only target for tests is Windows.
 
 This project uses ffmpeg binary (`home-server/ffmpeg/ffmpeg.exe`) to resample audio files which are above 88200hz (thats threshold above which html `<audio>` tag can't do shit about) and to create dummy test fixtures. FFmpeg is licensed under the GNU Lesser General Public License (LGPL).
 
-The tool has being downloaded from https://ffmpeg.org/
+The tool was downloaded from https://ffmpeg.org/
