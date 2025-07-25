@@ -8,6 +8,7 @@ To run the tests suit, you need first to prepare fixtures, which includes creati
 
 // FIXTURES CREATION WORKING YET
 `cargo run prepare-fixtures` will create all the necessary things inside ./test-fixtures.
+
 `cargo run cleanup-fixtures` will return all the permissions and delete all the fixtures. 
 
 `cargo test` will run the test suite. If there is no fixtures, it will skip all the tests that was dependent on those fixutres and print out warnings.
