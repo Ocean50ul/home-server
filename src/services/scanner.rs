@@ -12,6 +12,7 @@ pub struct MediaScanner {
 
 impl MediaScanner {
 
+    // TODO: Make it to be &'static PathBuf?
     pub fn new<P: AsRef<Path>>(music_path: P) -> Self {
         Self {
             music_lib_path: music_path.as_ref().to_owned(),
