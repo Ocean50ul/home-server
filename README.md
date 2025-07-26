@@ -1,8 +1,8 @@
-**Server startup**
+###**Server startup**
 
 `cargo run server dry-start` will run the server without scaning audio lib, resampling and synchronizing DB state with the music lib state.
 
-**Running Tests.**
+###**Running Tests.**
 
 To run the tests suit, you need first to prepare fixtures, which includes creating dummy audio files and folders with stripped permissions.
 
@@ -16,7 +16,7 @@ To run the tests suit, you need first to prepare fixtures, which includes creati
 
 For now, the only target for tests is Windows.
 
-**FFMPEG**
+###**FFMPEG**
 
 This project uses ffmpeg binary (`home-server/ffmpeg/ffmpeg.exe`) to resample audio files which are above 88200hz (thats threshold above which html `<audio>` tag can't do shit about) and to create dummy test fixtures. FFmpeg is licensed under the GNU Lesser General Public License (LGPL).
 
