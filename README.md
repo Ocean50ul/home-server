@@ -2,6 +2,11 @@
 
 `cargo run server dry-start` will run the server without scaning audio lib, resampling and synchronizing DB state with the music lib state.
 
+**WARNING**
+Server use resampler. There is different resampling policies, on of which is called InPlace. It will REPLACE audio tracks inside `./data/media/music/` with resampled ones. Right its the only working policy, so be carefull, there is no backups yet.
+
+`cargo run server start` will run the server with all necessary services. **WARNING** resample service will REPLACE all the tracks that has higher than 88200hz with resampled ones. Different resample policies will be added later.
+
 **Running Tests.**
 
 To run the tests suit, you need first to prepare fixtures, which includes creating dummy audio files and folders with stripped permissions.
