@@ -1,4 +1,4 @@
-###**Server startup**
+###Server startup
 
 `cargo run server dry-start` will run the server without scaning audio lib, resampling and synchronizing DB state with the music lib state.
 
