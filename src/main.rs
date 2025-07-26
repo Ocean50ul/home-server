@@ -1,9 +1,11 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use anyhow::Error;
 
 use home_server::{
     cli::{Cli, Command, FixtureActions, ServerActions}, 
-    services::scanner::MediaScanner, 
+    services::{resample::{FfmpegResampler, ResampleConfig, ResampleService, ResampleStrategy}, scanner::MediaScanner, sync::MusicLibSyncService}, 
     utils::{config::get_config, db::get_application_db}, 
     web::routes::create_router}
 ;
@@ -47,8 +49,68 @@ async fn main() -> Result<(), Error> {
 
                     if scanning_result.descriptors.is_empty() && scanning_result.errors.is_empty() {
                         println!("Music library is empty. Consider adding some tracks into ./data/media/music/");
+                    } else {
+                        println!("{:?}", scanning_result);
                     }
+                },
+
+                ServerActions::Resample => {
+                    let config = get_config()?;
+
+                    let scanner = MediaScanner::new(config.media.music_path.clone());
+                    let scanning_result = scanner.scan_music_lib()?;
+
+                    let resample_cofig = ResampleConfig {
+                        strategy: ResampleStrategy::InPlace,
+                        ..Default::default()
+                    };
+                    let ffmpeg_resampler = FfmpegResampler { ffmpeg_path: PathBuf::from("./ffmpeg/ffmpeg.exe")};
+                    let resample_service = ResampleService::new(resample_cofig, ffmpeg_resampler);
+
+                    let resample_report = resample_service.resample_library(&scanning_result);
+                    println!("{:?}", resample_report);
+                },
+
+                ServerActions::Sync => {
+                    let db = get_application_db().await?;
+                    let config = get_config()?;
+
+                    let sync_service = MusicLibSyncService::new(db.get_pool(), config.media.music_path.clone()).await?;
+                    let sync_report = sync_service.synchronize().await?;
+
+                    println!("{:?}", sync_report);
+                },
+
+                ServerActions::Start => {
+                    let db = get_application_db().await?;
+                    let config = get_config()?;
+
+                    let scanner = MediaScanner::new(config.media.music_path.clone());
+                    let scanning_result = scanner.scan_music_lib()?;
+
+                    let resample_cofig = ResampleConfig {
+                        strategy: ResampleStrategy::InPlace,
+                        ..Default::default()
+                    };
+                    let ffmpeg_resampler = FfmpegResampler { ffmpeg_path: PathBuf::from("./ffmpeg/ffmpeg.exe")};
+                    let resample_service = ResampleService::new(resample_cofig, ffmpeg_resampler);
+
+                    let _resample_report = resample_service.resample_library(&scanning_result);
+
+                    let sync_service = MusicLibSyncService::new(db.get_pool(), config.media.music_path.clone()).await?;
+                    let _sync_report = sync_service.synchronize().await?;
+
+                    let app = create_router(db.get_pool()).await?;
+
+                    let address = "0.0.0.0:8080";
+                    let listener = tokio::net::TcpListener::bind(address).await?;
+
+                    println!("Listening on http://{}", address);
+
+                    axum::serve(listener, app).await?;
+
                 }
+
             }
         }
     }

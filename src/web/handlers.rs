@@ -24,7 +24,10 @@ pub async fn serve_track(State(state): State<AppState>, Path(id): Path<Uuid>) ->
             }
         },
 
-        Ok(None) => (StatusCode::NOT_FOUND, "Track not found").into_response(),
+        Ok(None) => {
+            println!("Failed to serve the track; id is {}", id);
+            (StatusCode::NOT_FOUND, "Track not found").into_response()
+        },
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response(),
     }
 }

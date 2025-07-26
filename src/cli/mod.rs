@@ -30,5 +30,8 @@ pub enum FixtureActions {
 #[derive(Subcommand)]
 pub enum ServerActions {
     DryStart,
-    Scan
+    Scan,
+    Resample,
+    Sync,
+    Start
 }

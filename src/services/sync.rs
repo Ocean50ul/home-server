@@ -241,6 +241,7 @@ impl<'a> MusicLibSyncService<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct SyncServiceReport {
     pub deleted_tracks: BatchDeleteReport,
     pub deleted_albums: BatchDeleteReport,

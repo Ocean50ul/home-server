@@ -5,17 +5,21 @@ use rayon::{prelude::*, ThreadPoolBuildError, ThreadPoolBuilder};
 
 use crate::{domain::audiofile::{AudioFileDescriptor, AudioFileType}, services::scanner::ScanResult};
 
+// TODO: 
+//      1. Resample state. Even if there is already resmapled tracks inside .resampled, service resampling things again.
+//      2. ffmpeg echoing a lot of things, which pollutes cli heavily. Need to deal with it somehow. 
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResampleConfig {
-    max_sample_rate: u32,
-    strategy: ResampleStrategy,
-    cache_dir: PathBuf,
+    pub max_sample_rate: u32,
+    pub strategy: ResampleStrategy,
+    pub cache_dir: PathBuf,
 
-    parallelism: ParallelismPolicy,
+    pub parallelism: ParallelismPolicy,
 
     // unsure whether i need those
-    enable_backups: bool,
-    supported_types: Vec<AudioFileType>
+    pub enable_backups: bool,
+    pub supported_types: Vec<AudioFileType>
 }
 
 impl Default for ResampleConfig {
@@ -147,7 +151,7 @@ pub trait Resampler {
 }
 
 pub struct FfmpegResampler {
-    ffmpeg_path: PathBuf
+    pub ffmpeg_path: PathBuf
 }
 
 impl Resampler for FfmpegResampler {

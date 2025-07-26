@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use tower_http::services::{ServeDir};
 use axum::{routing::{get, get_service}, Router};
 
-use crate::web::{handlers::serve_index, AppState, WebLayerError};
+use crate::web::{handlers::{serve_index, serve_track}, AppState, WebLayerError};
 use super::template_builders::build_index_page;
 
 pub async fn create_router(pool: &'static SqlitePool) -> Result<Router<()>, WebLayerError> {
@@ -13,6 +13,7 @@ pub async fn create_router(pool: &'static SqlitePool) -> Result<Router<()>, WebL
 
     let app: Router<()> = Router::new()
         .route("/", get(serve_index))
+        .route("/tracks/{id}", get(serve_track)) 
         .nest_service("/static", ServeDir::new("static"))
         .with_state(app_state);
 

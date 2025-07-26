@@ -70,6 +70,7 @@ impl BatchSaveReport
     }
 }
 
+#[derive(Debug)]
 pub struct BatchDeleteReport {
     pub deleted_ids: Vec<Uuid>,
     pub failed: Vec<(Uuid, RepositoryError)>

@@ -2,3 +2,8 @@
 /target
 .env
 .vscode
+
+/data/db/database.db
+/data/media/music/*
+/data/media/music/.resampled/*
+/data/media/videos/*
