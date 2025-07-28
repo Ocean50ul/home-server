@@ -1,5 +1,3 @@
-pub mod fixtures;
-
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
