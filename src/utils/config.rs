@@ -2,7 +2,15 @@ use serde::Deserialize;
 use std::{fs, path::PathBuf};
 use toml;
 use std::sync::OnceLock;
-use anyhow::{anyhow, Error};
+
+#[derive(Debug, Clone, thiserror::Error)]
+enum ConfigLoadingError {
+    #[error("Failed to read the config (./config.toml): {0}")]
+    FailedToReadConfig(String),
+
+    #[error("Failed to parse the config: {0}")]
+    FailedToParseConfig(#[from] toml::de::Error)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -27,29 +35,27 @@ pub struct MediaConfig {
     pub music_path: PathBuf,
     pub video_path: PathBuf,
     pub filesharing_path: PathBuf,
+    pub ffmpeg_path: PathBuf
 }
 
 impl Config {
-    pub fn load() -> Result<Self, Error> {
-        let config_str = fs::read_to_string("config.toml")?;
+    pub fn load() -> Result<Self, ConfigLoadingError> {
+        let config_str = fs::read_to_string("config.toml").map_err(|err| ConfigLoadingError::FailedToReadConfig(err.to_string()))?;
         let config: Config = toml::from_str(&config_str)?;
 
         Ok(config)
     }
 }
 
-pub fn get_config() -> Result<&'static Config, Error> {
-    static CONFIG: OnceLock<Result<Config, String>> = OnceLock::new();
+pub fn get_config() -> Result<&'static Config, ConfigLoadingError> {
+    static CONFIG: OnceLock<Result<Config, ConfigLoadingError>> = OnceLock::new();
 
     let result = CONFIG.get_or_init(|| {
-        match Config::load() {
-            Ok(config) => Ok(config),
-            Err(err) => Err(err.to_string())
-        }
+        Config::load()
     });
 
     match result {
         Ok(config) => Ok(config),
-        Err(err) => Err(anyhow!("{}", err))
+        Err(err) => Err(err.clone())
     }
 }
