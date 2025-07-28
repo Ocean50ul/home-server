@@ -4,7 +4,7 @@ use toml;
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, thiserror::Error)]
-enum ConfigLoadingError {
+pub enum ConfigLoadingError {
     #[error("Failed to read the config (./config.toml): {0}")]
     FailedToReadConfig(String),
 
@@ -35,7 +35,12 @@ pub struct MediaConfig {
     pub music_path: PathBuf,
     pub video_path: PathBuf,
     pub filesharing_path: PathBuf,
-    pub ffmpeg_path: PathBuf
+    pub ffmpeg_exe_path: PathBuf,
+    pub ffmpeg_dir_path: PathBuf,
+    pub ffmpeg_donwload_mirror: String,
+    pub ffmpeg_sha_download_mirror: String,
+    pub test_fixtures_path: PathBuf,
+    pub resampled_music_path: PathBuf
 }
 
 impl Config {

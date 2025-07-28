@@ -9,4 +9,11 @@ path = "./data/db/database.db"
 music_path = "./data/media/music"
 video_path = "./data/media/video"
 filesharing_path = "./data/filesharing"
-ffmpeg_path = "./ffmpeg/ffmpeg.exe"
+
+ffmpeg_exe_path = "./ffmpeg/ffmpeg.exe"
+ffmpeg_dir_path = "./ffmpeg"
+ffmpeg_donwload_mirror = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z"
+ffmpeg_sha_download_mirror = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z.sha256"
+
+test_fixtures_path = "./test_fixtures"
+resampled_music_path = "./data/music/.resampled"

@@ -1,6 +1,7 @@
 pub mod scanner;
 pub mod sync;
 pub mod resample;
+pub mod prepare;
 
 use lofty::error::LoftyError;
 
