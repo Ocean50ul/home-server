@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use sevenz_rust2::{self, default_entry_extract_fn};
 
-use crate::{domain::audiofile::AudioFileType, utils::config::{get_config, ConfigLoadingError}};
+use crate::{domain::audiofile::AudioFileType, utils::config::{get_config, Config, ConfigLoadingError}};
 
 const FFMPEG_EXECUTABLE_NAME: &str = "ffmpeg.exe";
 const FFMPEG_ARCHIVE_NAME: &str = "ffmpeg_zip.7z";
@@ -160,8 +160,7 @@ fn unzip_ffmpeg(zip_path: &Path, file_name: &str, unzip_dest: &Path) -> Result<(
     Ok(())
 }
 
-pub fn prepare_ffmpeg() -> Result<(), PrepareServiceError> {
-    let config = get_config()?;
+pub fn prepare_ffmpeg(config: &Config) -> Result<(), PrepareServiceError> {
     let ffmpeg_exe_path = &config.media.ffmpeg_exe_path;
 
     if ffmpeg_exists(&ffmpeg_exe_path) {
@@ -192,8 +191,7 @@ pub fn prepare_ffmpeg() -> Result<(), PrepareServiceError> {
 
 
 /* ======================= DB PREPARATION PART ======================= */
-pub fn prepare_db() -> Result<(), PrepareServiceError> {
-    let config = get_config()?;
+pub fn prepare_db(config: &Config) -> Result<(), PrepareServiceError> {
     let db_path = &config.database.path;
 
     if db_path.exists() {
@@ -210,15 +208,19 @@ pub fn prepare_db() -> Result<(), PrepareServiceError> {
 
 
 /* ======================= DIRS PREPARATION PART ======================= */
-pub fn prepare_dirs() -> Result<(), PrepareServiceError> {
-    let config = get_config()?;
+pub fn prepare_dirs(config: &Config) -> Result<(), PrepareServiceError> {
+
+    // bad practice, buuuut
+    let db_path = config.database.path.parent().map(|p| p.to_path_buf()).unwrap();
 
     let paths = vec![
         &config.media.resampled_music_path,
         &config.media.video_path,
         &config.media.video_path,
         &config.media.ffmpeg_dir_path,
-        &config.media.test_fixtures_path
+        &config.media.test_fixtures_path,
+        &config.media.filesharing_path,
+        &db_path
     ];
 
     for path in paths {
@@ -267,10 +269,10 @@ pub struct AudioFixture {
 }
 
 impl AudioFixture {
-    pub fn new(audio_type: AudioFileType) -> Result<AudioFixture, FixturesSetupError> {
-        let (path, metadata) = match audio_type {
+    pub fn new(audio_type: AudioFileType, config: &Config) -> Result<AudioFixture, FixturesSetupError> {
+        let (file_name, metadata) = match audio_type {
             AudioFileType::Flac => (
-                String::from("./test_fixtures/files/flac_valid_metadata.flac"),
+                "flac_valid_metadata.flac",
                 HashMap::from([
                     ("title".to_string(), "FLAC test title".to_string()),
                     ("artist".to_string(), "FLAC test artist".to_string()),
@@ -283,7 +285,7 @@ impl AudioFixture {
             ),
 
             AudioFileType::Mp3 => (
-                String::from("./test_fixtures/files/mp3_valid_metadata.mp3"),
+                "mp3_valid_metadata.mp3",
                 HashMap::from([
                     ("title".to_string(), "MP3 test title".to_string()),
                     ("artist".to_string(), "MP3 test artist".to_string()),
@@ -296,7 +298,7 @@ impl AudioFixture {
             ),
 
             AudioFileType::Wav => (
-                String::from("./test_fixtures/files/wav_valid_metadata.wav"),
+                "wav_valid_metadata.wav",
                 HashMap::from([
                     ("title".to_string(), "WAV test title".to_string()),
                     ("artist".to_string(), "WAV test artist".to_string()),
@@ -311,6 +313,12 @@ impl AudioFixture {
             unsupported => return Err(FixturesSetupError::UnsupportedFileType(unsupported.as_str().to_string()))
         };
 
+        let path = config.media.test_fixtures_path
+            .join("files")
+            .join(file_name)
+            .to_string_lossy()
+            .to_string();   
+
         Ok(
             Self {
                 path,
@@ -322,10 +330,10 @@ impl AudioFixture {
 
 #[derive(Serialize, Deserialize)]
 pub struct FixturesContext {
-    fixture_path: PathBuf,
-    stripped_files: Vec<PathBuf>,
-    stripped_dirs: Vec<PathBuf>,
-    fixtures_cache_path: PathBuf
+    pub fixture_path: PathBuf,
+    pub stripped_files: Vec<PathBuf>,
+    pub stripped_dirs: Vec<PathBuf>,
+    pub fixtures_cache_path: PathBuf
 }
 
 impl FixturesContext {
@@ -421,36 +429,32 @@ fn restore_permissions(path: &Path) -> Result<(), FixturesSetupError> {
     Ok(())
 }
 
-pub fn create_fixtures(fctx: &mut FixturesContext) -> Result<(), FixturesSetupError> {
+pub fn prepare_fixtures(fctx: &mut FixturesContext) -> Result<(), FixturesSetupError> {
     if fctx.fixtures_cache_path.exists() {
         // right now assume that if cache exist, then all the fixutres are also presented.
         return Ok(());
     }
 
-    create_dir_all(fctx.fixture_path.join("/files"))?;
-    create_dir_all(fctx.fixture_path.join("/dirs/inaccessible_dir"))?;
+    create_dir_all(fctx.fixture_path.join("files"))?;
+    create_dir_all(fctx.fixture_path.join("dirs/accessible_dir"))?;
 
-    create_dir_all(fctx.fixture_path.join("/dirs/accessible_dir/inaccessible_dir"))?;
-
-    strip_permissions(&fctx.fixture_path.join("/dirs/inaccessible_dir"))?;
-    strip_permissions(&fctx.fixture_path.join("/dirs/accessible_dir/inaccessible_dir"))?;
-
-    create_fixture_audio_files()?;
+    make_inaccessible_dir("dirs/inaccessible_dir", fctx)?;
+    make_inaccessible_dir("dirs/accessible_dir/inaccessible_dir", fctx)?;
 
     fctx.cache()?;
 
     Ok(())
 }
 
-pub fn create_fixture_audio_files() -> Result<(), FixturesSetupError> {
-    let fixtures = vec![
-        AudioFixture::new(AudioFileType::Flac)?,
-        AudioFixture::new(AudioFileType::Mp3)?,
-        AudioFixture::new(AudioFileType::Wav)?
+pub fn create_fixture_audio_files(config: &Config) -> Result<(), FixturesSetupError> {
+    let audio_fixtures = vec![
+        AudioFixture::new(AudioFileType::Flac, config)?,
+        AudioFixture::new(AudioFileType::Mp3, config)?,
+        AudioFixture::new(AudioFileType::Wav, config)?
     ];
 
-    for fix in fixtures {
-        let mut cmd = Command::new("./ffmpeg/ffmpeg.exe");
+    for fix in audio_fixtures {
+        let mut cmd = Command::new(&config.media.ffmpeg_exe_path);
 
         let mut args = vec![
             "-y".to_string(),
@@ -479,8 +483,8 @@ pub fn create_fixture_audio_files() -> Result<(), FixturesSetupError> {
     Ok(())
 }
 
-pub fn cleanup() -> Result<(), FixturesSetupError> {
-    let json_str = read_to_string(PathBuf::from("./test_fixtures/fixtures_state.json"))?;
+pub fn cleanup(fixtures_state_json: &Path) -> Result<(), FixturesSetupError> {
+    let json_str = read_to_string(fixtures_state_json)?;
     let mut fctx: FixturesContext = serde_json::from_str(&json_str)?;
 
     // Restore files first
@@ -526,12 +530,292 @@ pub fn cleanup() -> Result<(), FixturesSetupError> {
 }
 
 pub fn run_prepare_service() -> Result<(), PrepareServiceError> {
-    prepare_dirs()?;
-    prepare_db()?;
-    prepare_ffmpeg()?;
+    let config = get_config()?;
+
+    prepare_dirs(config)?;
+    prepare_db(config)?;
+    prepare_ffmpeg(config)?;
 
     let mut fixtures_context = FixturesContext::new();
-    create_fixtures(&mut fixtures_context)?;
+    prepare_fixtures(&mut fixtures_context)?;
+    create_fixture_audio_files(config)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::io::Write;
+
+    use tempfile::TempDir;
+
+    use crate::utils::config::{DatabaseConfig, MediaConfig, ServerConfig};
+
+    use super::*;
+
+    #[derive(Debug, thiserror::Error)]
+    enum TestSetupError {
+        #[error("I/O error: {0}")]
+        IOError(#[from] std::io::Error),
+
+        #[error("parse_checksum_html returned with an error: {0}")]
+        FailedToParseChecksums(PrepareServiceError),
+
+        #[error("prepare_dirs returned with an error: {0}")]
+        FailedToPrepareDirs(PrepareServiceError),
+
+        #[error("prepare_db returned with an error: {0}")]
+        FailedToPrepareDb(PrepareServiceError),
+
+        #[error("FixturesContext::cache() returned with an error: {0}")]
+        FailedToCacheFixtures(FixturesSetupError),
+
+        #[error("error while deserializing fixture_state.json: {0}")]
+        FailedToDeserializeFixturesState(serde_json::Error),
+
+        #[error("error during dummy file compression: {0}")]
+        FailedToCompressDummy(sevenz_rust2::Error),
+
+        #[error("prepare_ffmpeg returned with an error: {0}")]
+        FailedToPrepareFfmpeg(PrepareServiceError),
+
+        #[error("prepare_fixtures returned with an error: {0}")]
+        FaileToPrepareFixtures(FixturesSetupError),
+
+        #[error(">>>>>WARNING<<<<< cleanup function has returned with an error: {source}; you need to clean things up manualy here: {fixtures_path}")]
+        FailedToCleanThingsUp { source: FixturesSetupError, fixtures_path: PathBuf }
+    }
+
+    struct TestContext {
+        tempdir: TempDir,
+        checksum_html: String,
+        expected_checksum: String,
+        invalid_checksum: String,
+        config_mock: Config
+    }
+
+    impl TestContext {
+        fn new() -> Result <Self, TestSetupError> {
+            let tempdir = TempDir::new()?;
+            Ok(
+                Self {
+                    config_mock: Config {
+                        server: ServerConfig {
+                            host: "0.0.0.0".to_string(),
+                            port: 8080
+                        },
+
+                        database: DatabaseConfig {
+                            path: tempdir.path().join("data/db/database.db")
+                        },
+
+                        media: MediaConfig {
+                            music_path: tempdir.path().join("data/media/music"),
+                            video_path: tempdir.path().join("data/media/video"),
+                            filesharing_path: tempdir.path().join("data/filesharing"),
+                            ffmpeg_dir_path: tempdir.path().join("ffmpeg"),
+                            ffmpeg_exe_path: tempdir.path().join("ffmpeg/ffmpeg.exe"),
+                            ffmpeg_donwload_mirror: "mock this!".to_string(),
+                            ffmpeg_sha_download_mirror: "mock this".to_string(),
+                            test_fixtures_path: tempdir.path().join("test_fixtures"),
+                            resampled_music_path: tempdir.path().join("data/media/music/.resampled")
+                        }
+                    },
+                    checksum_html: String::from(r#"<html><pre>abc123def456</pre></html>"#),
+                    expected_checksum: String::from("abc123def456"),
+                    invalid_checksum: String::from(r#"<html>no pre tags here</html>"#),
+
+                    tempdir: tempdir
+                }
+            )
+        }
+
+        fn set_ffmpeg_dl_mirror(&mut self, url: String) -> () {
+            self.config_mock.media.ffmpeg_donwload_mirror = url;
+        }
+
+        fn set_ffmpeg_sha_dl_mirror(&mut self, url: String) -> () {
+            self.config_mock.media.ffmpeg_sha_download_mirror = url;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ffmpeg_exists_when_present() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        let ffmpeg_path  = ctx.tempdir.path().join(FFMPEG_EXECUTABLE_NAME);
+        File::create(&ffmpeg_path)?;
+
+        assert!(ffmpeg_exists(&ffmpeg_path));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_ffmpeg_exists_when_absent() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        let ffmpeg_path  = ctx.tempdir.path().join(FFMPEG_EXECUTABLE_NAME);
+
+        assert!(!ffmpeg_exists(&ffmpeg_path));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_checksum_html_valid() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        let checksum = parse_checksum_html(&ctx.checksum_html).map_err(|err| TestSetupError::FailedToParseChecksums(err))?;
+
+        assert_eq!(checksum, ctx.expected_checksum);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_checksum_html_invalid() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        let checksum_parsing_result = parse_checksum_html(&ctx.invalid_checksum);
+
+        assert!(matches!(checksum_parsing_result, Err(PrepareServiceError::FailedToParseChecksums())));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_prepare_dirs() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+
+        prepare_dirs(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDirs(err))?;
+        let db_path = ctx.config_mock.database.path.parent().map(|p| p.to_path_buf()).unwrap();
+
+
+        assert!(db_path.exists());
+        assert!(ctx.config_mock.media.ffmpeg_dir_path.exists());
+        assert!(ctx.config_mock.media.filesharing_path.exists());
+        assert!(ctx.config_mock.media.music_path.exists());
+        assert!(ctx.config_mock.media.resampled_music_path.exists());
+        assert!(ctx.config_mock.media.video_path.exists());
+        assert!(ctx.config_mock.media.test_fixtures_path.exists());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_prepare_db_creates_file() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        prepare_dirs(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDirs(err))?;
+
+        prepare_db(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDb(err))?;
+
+        assert!(ctx.config_mock.database.path.exists());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fixture_context_cache() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        prepare_dirs(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDirs(err))?;
+
+        let inacc_dir1 = PathBuf::from("./test-fixtures/dirs/inaccessible_dir");
+        let inacc_dir2 = PathBuf::from("./test-fixtures/dirs/accessible_dir/inaccessible_dir");
+        let inacc_file = PathBuf::from("./test-fixtures/dirs/accessible_dir/inaccessible_file.flac");
+
+        let mut fxtr_context = FixturesContext {
+            fixture_path: ctx.config_mock.media.test_fixtures_path.clone(),
+            stripped_dirs: Vec::new(),
+            stripped_files: Vec::new(),
+            fixtures_cache_path: ctx.config_mock.media.test_fixtures_path.join("fixtures_state.json")
+        };
+
+        assert!(fxtr_context.fixture_path.exists());
+
+        fxtr_context.stripped_dirs.push(inacc_dir1.clone());
+        fxtr_context.stripped_dirs.push(inacc_dir2.clone());
+        fxtr_context.stripped_files.push(inacc_file.clone());
+
+        fxtr_context.cache().map_err(|err| TestSetupError::FailedToCacheFixtures(err))?;
+        assert!(fxtr_context.fixtures_cache_path.exists());
+
+        let json_str = read_to_string(fxtr_context.fixtures_cache_path)?;
+        let cached_fxtr: FixturesContext = serde_json::from_str(&json_str).map_err(|err| TestSetupError::FailedToDeserializeFixturesState(err))?;
+
+        assert!(cached_fxtr.stripped_dirs.contains(&inacc_dir1));
+        assert!(cached_fxtr.stripped_dirs.contains(&inacc_dir2));
+        assert!(cached_fxtr.stripped_files.contains(&inacc_file));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fixture_create_and_cleanup() -> Result<(), TestSetupError> {
+        let ctx = TestContext::new()?;
+        prepare_dirs(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDirs(err))?;
+
+        let mut fxtr_context = FixturesContext {
+            fixture_path: ctx.config_mock.media.test_fixtures_path.clone(),
+            stripped_dirs: Vec::new(),
+            stripped_files: Vec::new(),
+            fixtures_cache_path: ctx.config_mock.media.test_fixtures_path.join("fixtures_state.json")
+        };
+
+        prepare_fixtures(&mut fxtr_context).map_err(|err| TestSetupError::FaileToPrepareFixtures(err))?;
+        assert_eq!(fxtr_context.stripped_dirs.len(), 2);
+        
+        for dir_path in fxtr_context.stripped_dirs {
+            assert!(dir_path.exists());
+        }
+
+        assert!(fxtr_context.fixtures_cache_path.exists());
+
+        cleanup(&fxtr_context.fixtures_cache_path).map_err(|err| TestSetupError::FailedToCleanThingsUp{ source: err, fixtures_path: fxtr_context.fixture_path.to_path_buf()})?;
+
+        assert!(!fxtr_context.fixture_path.exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ffmpeg_download_and_unzip() -> Result<(), TestSetupError> {
+        use httpmock::MockServer;
+        let server = MockServer::start();
+
+        let mut ctx = TestContext::new()?;
+        prepare_dirs(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareDirs(err))?;
+
+        let dummy_ffmpeg_path = ctx.tempdir.path().join("ffmpeg.exe");
+
+        let mut dummy_ffmpeg_exe = File::create(&dummy_ffmpeg_path)?;
+        dummy_ffmpeg_exe.write("hello world!".as_bytes())?;
+
+        let dummy_zip_path = ctx.tempdir.path().join("ffmpeg.7z");
+        sevenz_rust2::compress_to_path(&dummy_ffmpeg_path, &dummy_zip_path).map_err(|err| TestSetupError::FailedToCompressDummy(err))?;
+
+        let archive_bytes = File::open(dummy_zip_path)?.bytes().collect::<Result<Vec<u8>, _>>()?;
+        server.mock(|when, then| {
+            when.path("/ffmpeg.7z");
+            then.status(200).body(archive_bytes.clone());
+        });
+
+        let mut hasher = Sha256::new();
+        hasher.update(&archive_bytes);
+
+        let hex = format!("{:x}", hasher.finalize());
+        server.mock(|when, then| {
+            when.path("/checksum");
+            then.status(200).body(format!("<html><body><pre>{}</pre></body></html>", hex));
+        });
+
+        ctx.set_ffmpeg_dl_mirror(format!("{}/ffmpeg.7z", server.url("")));
+        ctx.set_ffmpeg_sha_dl_mirror(format!("{}/checksum", server.url("")));
+
+        prepare_ffmpeg(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareFfmpeg(err))?;
+
+        assert!(ctx.config_mock.media.ffmpeg_exe_path.exists());
+
+        let content = std::fs::read_to_string(&ctx.config_mock.media.ffmpeg_exe_path)?;
+        assert_eq!(content, "hello world!");
+
+        assert!(!ctx.config_mock.media.ffmpeg_dir_path.join("ffmpeg.7z").exists());
+
+        Ok(())
+    }
 }
