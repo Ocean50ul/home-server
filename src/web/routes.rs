@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sqlx::SqlitePool;
 use tower_http::services::{ServeDir};
-use axum::{routing::{get, get_service}, Router};
+use axum::{routing::{get}, Router};
 
 use crate::web::{handlers::{serve_index, serve_track}, AppState, WebLayerError};
 use super::template_builders::build_index_page;

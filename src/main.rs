@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+use std::path::{PathBuf};
 
 use clap::Parser;
 use anyhow::Error;
 
 use home_server::{
     cli::{Cli, Commands}, 
-    services::{prepare::run_prepare_userspace, resample::{FfmpegResampler, ResampleConfig, ResampleService, ResampleStrategy}, scanner::MediaScanner, sync::MusicLibSyncService}, 
+    services::{prepare::{run_prepare_userspace}, resample::{FfmpegResampler, ResampleConfig, ResampleService, ResampleStrategy}, scanner::MediaScanner, sync::MusicLibSyncService}, 
     utils::{config::get_config, db::get_application_db}, 
     web::routes::create_router
 };
@@ -107,15 +107,9 @@ async fn main() -> Result<(), Error> {
             if args.dev {
                 println!("UNDER CONSTRUCTION");
             } else {
-                println!("\nHello, this is preparation service!");
-                println!("\nIn order for the server to work, we need to create couple of dirs, a DB instance and download ffmpeg.exe.");
-                println!("The links for the ffmpeg and sha checksum are inside the config.toml: [ffmpeg_donwload_mirror] and [ffmpeg_sha_download_mirror].");
-                println!("By default, we are using gyan.dev mirror.\n");
-                println!("There is two types of preparation service: one that prepares environment for using the server and one that prepares it for development.");
-                println!("By default, we prepare environment for using the server. To prepare dev environment you should run 'cargo run prepare --dev'.");
-                println!("\nPlease, take a seat, have fun and press any key: ");
-
-                run_prepare_userspace()?;
+                println!("\n\nRunning preparation service..");
+                run_prepare_userspace().await?;
+                println!("Preparation service is complete.");
             }
         }
     }

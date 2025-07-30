@@ -25,12 +25,14 @@ The service should be run via CLI: e.g. cargo run prepare.
 
 */
 
-use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{copy, Read, Write}, path::{Path, PathBuf}, process::Command};
+use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
+use tokio::io::AsyncWriteExt;
 
 use indicatif::{ProgressBar, ProgressStyle};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use sevenz_rust2::{self, default_entry_extract_fn};
+use sevenz_rust2::{self, ArchiveReader, Password};
 
 use crate::{domain::audiofile::AudioFileType, utils::config::{get_config, Config, ConfigLoadingError}};
 
@@ -73,6 +75,9 @@ pub enum PrepareServiceError {
     #[error("Could not create file '{path}': {source}")]
     FileCreateError { path: PathBuf, #[source] source: std::io::Error },
 
+    #[error("Could not write to a file '{path}': {source}")]
+    FileWriteError { path: PathBuf, #[source] source: std::io::Error },
+
     #[error("Could not create dir '{path}': {source}")]
     DirCreateError { path: PathBuf, #[source] source: std::io::Error },
     
@@ -80,7 +85,19 @@ pub enum PrepareServiceError {
     ErrorExtractingFfmpeg(sevenz_rust2::Error),
 
     #[error(transparent)]
-    FixtureSetupError(#[from] FixturesSetupError)
+    FixtureSetupError(#[from] FixturesSetupError),
+
+    #[error("Request returned with error status: ")]
+    RequestFailureStatus(String),
+
+    #[error("Failed to read the file from ffmpeg archive: {0}")]
+    FailedToReadTheFileFromArchive(sevenz_rust2::Error),
+
+    #[error("Failed to find ffmpeg.exe inside the archive! The name provided: {0}; ends_with didnt worked out!")]
+    FailedToFindFFmpegInsideArchive(String),
+
+    #[error("for_each_entries has returned with an error: {0}")]
+    ForEachError(sevenz_rust2::Error)
 }
 
 /* ======================= FFMPEG PREPARATION PART ======================= */
@@ -89,13 +106,18 @@ fn ffmpeg_exists(path: &Path) -> bool {
     path.exists()
 }
 
-fn download_ffmpeg_zip_essentials(dest_file_path: &Path, url: &str) -> Result<(), PrepareServiceError> {
+async fn download_ffmpeg_zip_essentials(dest_file_path: &Path, url: &str) -> Result<(), PrepareServiceError> {
     println!("Downloading ffmpeg from {}", url);
     
-    let mut dest_file = File::create(dest_file_path)
+    let mut dest_file = tokio::fs::File::create(dest_file_path).await
         .map_err(|err| PrepareServiceError::ErrorCreatingDestinationFile(err))?;
 
-    let mut response = reqwest::blocking::get(url)?.error_for_status()?;
+    let client = Client::new();
+    let mut response = client.get(url).send().await?;
+
+    if !response.status().is_success() {
+        return Err(PrepareServiceError::RequestFailureStatus(response.status().to_string()));
+    }
 
     let pb: ProgressBar;
     if let Some(total_size) = response.content_length() {
@@ -111,49 +133,25 @@ fn download_ffmpeg_zip_essentials(dest_file_path: &Path, url: &str) -> Result<()
             .unwrap());
     }
 
-    // A standard 8KB buffer
-    let mut buffer = [0; 8192];
-    loop {
-        match response.read(&mut buffer) {
-            Ok(bytes_read) => {
-                // If bytes_read is 0, the stream has ended.
-                if bytes_read == 0 {
-                    break;
-                }
-                // Write the chunk to the file
-                dest_file.write_all(&buffer[..bytes_read])
-                    .map_err(|err| PrepareServiceError::ErrorCopyingIntoDestinationFile(err))?;
-                
-                // Increment the progress bar by the number of bytes read
-                pb.inc(bytes_read as u64);
-            }
-            Err(e) => {
-                return Err(PrepareServiceError::ErrorCopyingIntoDestinationFile(e));
-            }
-        }
+    while let Some(chunk) = response.chunk().await? {
+        dest_file
+            .write_all(&chunk).await
+            .map_err(|err| PrepareServiceError::ErrorCopyingIntoDestinationFile(err))?;
+
+        pb.inc(chunk.len() as u64);
     }
 
+    dest_file.flush().await.map_err(|e| PrepareServiceError::ErrorCopyingIntoDestinationFile(e))?;
     pb.finish_with_message("Download complete");
 
     Ok(())
 }
 
-fn parse_checksum_html(html_string: &str) -> Result<String, PrepareServiceError> {
-    Ok(
-        html_string
-            .split("<pre>")
-            .nth(1)
-            .and_then(|s| s.split("</pre>").next())
-            .map(|s| s.trim().to_string())
-            .ok_or(PrepareServiceError::FailedToParseChecksums())?
-    )
-}
+pub async fn get_checksums(checksum_url: &str) -> Result<String, PrepareServiceError> {
+    let client = Client::new();
+    let response = client.get(checksum_url).send().await?;
 
-fn get_checksums(checksum_url: &str) -> Result<String, PrepareServiceError> {
-    let response = reqwest::blocking::get(checksum_url)?.error_for_status()?;
-    let html_string = response.text()?;
-
-    parse_checksum_html(&html_string)
+    Ok(response.text().await?)
 }
 
 fn verify_checksums(ffmpeg_zip_path: &Path, expected_checksum: String) -> Result<(), PrepareServiceError> {
@@ -178,27 +176,65 @@ fn verify_checksums(ffmpeg_zip_path: &Path, expected_checksum: String) -> Result
     Ok(())
 }
 
-fn unzip_ffmpeg(zip_path: &Path, file_name: &str, unzip_dest: &Path) -> Result<(), PrepareServiceError> {
-    let src_reader = File::open(zip_path).map_err(|err| PrepareServiceError::FileOpenError{path: zip_path.to_path_buf(), source: err})?;
+pub fn unzip_ffmpeg(zip_path: &Path, file_name: &str, unzip_dest: &Path) -> Result<(), PrepareServiceError> {
 
-    sevenz_rust2::decompress_with_extract_fn(
-        src_reader, 
-        unzip_dest,
-        |entry, reader, dest| {
-            if entry.name() == file_name {
-                let r = default_entry_extract_fn(entry, reader, dest);
-                r
-            } else {
-                Ok(false)
-            }
+    let mut archive_reader = ArchiveReader::open(zip_path, Password::empty())
+        .map_err(PrepareServiceError::ErrorExtractingFfmpeg)?;
+
+    let mut file_found = false;
+
+    let result = archive_reader.for_each_entries(|entry, reader| {
+        if entry.is_directory() {
+            return Ok(true); // Continue
         }
-    )
-    .map_err(|err| PrepareServiceError::ErrorExtractingFfmpeg(err))?;
+
+        if !file_found && entry.name().ends_with(file_name) {
+            println!("\nExtracting ffmpeg.exe fron an archive..");
+            
+            let total_size = entry.size();
+            let pb = ProgressBar::new(total_size);
+            pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.yellow/blue}] {bytes}/{total_bytes} ({bytes_per_sec})")
+                            .unwrap()
+                            .progress_chars("=> ")
+            );
+
+            let dest_path = unzip_dest.join(file_name);
+            let mut dest_file = File::create(&dest_path)?;
+
+            let mut buf = [0; 8192];
+            loop {
+                let bytes_read = reader.read(&mut buf)?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                dest_file.write_all(&buf[..bytes_read])?;
+                
+                pb.inc(bytes_read as u64);
+            }
+            
+            pb.finish_with_message("Extraction complete.");
+            file_found = true;
+            
+            return Ok(false);
+        }
+
+        Ok(true)
+    });
+
+    if let Err(e) = result {
+        return Err(PrepareServiceError::ForEachError(e));
+    }
+    
+    if !file_found {
+        return Err(PrepareServiceError::FailedToFindFFmpegInsideArchive(file_name.to_string()));
+    }
 
     Ok(())
 }
 
-pub fn prepare_ffmpeg(config: &Config) -> Result<(), PrepareServiceError> {
+pub async fn prepare_ffmpeg(config: &Config) -> Result<(), PrepareServiceError> {
     let ffmpeg_exe_path = &config.media.ffmpeg_exe_path;
 
     if ffmpeg_exists(&ffmpeg_exe_path) {
@@ -206,10 +242,10 @@ pub fn prepare_ffmpeg(config: &Config) -> Result<(), PrepareServiceError> {
     }
     let zip_path =config.media.ffmpeg_dir_path.join(FFMPEG_ARCHIVE_NAME);
     let gyan_mirror = &config.media.ffmpeg_donwload_mirror;
-    download_ffmpeg_zip_essentials(&zip_path, gyan_mirror)?;
+    download_ffmpeg_zip_essentials(&zip_path, gyan_mirror).await?;
 
     let checksum_url = &config.media.ffmpeg_sha_download_mirror;
-    let expected_checksum = get_checksums(checksum_url)?;
+    let expected_checksum = get_checksums(checksum_url).await?;
     verify_checksums(&zip_path, expected_checksum)?;
 
     unzip_ffmpeg(&zip_path, FFMPEG_EXECUTABLE_NAME, &config.media.ffmpeg_dir_path)?;
@@ -218,6 +254,7 @@ pub fn prepare_ffmpeg(config: &Config) -> Result<(), PrepareServiceError> {
         return Err(PrepareServiceError::FfmpegDoesntExist())
     }
 
+    println!("\nCleaning things up..");
     remove_file(&zip_path).map_err(|err| PrepareServiceError::FileRemoveError{path: zip_path.to_path_buf(), source: err})?;
 
     Ok(())
@@ -567,12 +604,12 @@ pub fn cleanup(fixtures_state_json: &Path) -> Result<(), FixturesSetupError> {
     Ok(())
 }
 
-pub fn run_prepare_devspace() -> Result<(), PrepareServiceError> {
+pub async fn run_prepare_devspace() -> Result<(), PrepareServiceError> {
     let config = get_config()?;
 
     prepare_dirs(config)?;
     prepare_db(config)?;
-    prepare_ffmpeg(config)?;
+    prepare_ffmpeg(config).await?;
 
     let mut fixtures_context = FixturesContext::new();
     prepare_fixtures(&mut fixtures_context)?;
@@ -581,12 +618,12 @@ pub fn run_prepare_devspace() -> Result<(), PrepareServiceError> {
     Ok(())
 }
 
-pub fn run_prepare_userspace() -> Result<(), PrepareServiceError> {
+pub async fn run_prepare_userspace() -> Result<(), PrepareServiceError> {
     let config = get_config()?;
 
     prepare_dirs(config)?;
     prepare_db(config)?;
-    prepare_ffmpeg(config)?;
+    prepare_ffmpeg(config).await?;
 
     Ok(())
 }
@@ -605,9 +642,6 @@ pub mod tests {
     enum TestSetupError {
         #[error("I/O error: {0}")]
         IOError(#[from] std::io::Error),
-
-        #[error("parse_checksum_html returned with an error: {0}")]
-        FailedToParseChecksums(PrepareServiceError),
 
         #[error("prepare_dirs returned with an error: {0}")]
         FailedToPrepareDirs(PrepareServiceError),
@@ -636,9 +670,6 @@ pub mod tests {
 
     struct TestContext {
         tempdir: TempDir,
-        checksum_html: String,
-        expected_checksum: String,
-        invalid_checksum: String,
         config_mock: Config
     }
 
@@ -669,9 +700,6 @@ pub mod tests {
                             resampled_music_path: tempdir.path().join("data/media/music/.resampled")
                         }
                     },
-                    checksum_html: String::from(r#"<html><pre>abc123def456</pre></html>"#),
-                    expected_checksum: String::from("abc123def456"),
-                    invalid_checksum: String::from(r#"<html>no pre tags here</html>"#),
 
                     tempdir: tempdir
                 }
@@ -704,25 +732,6 @@ pub mod tests {
         let ffmpeg_path  = ctx.tempdir.path().join(FFMPEG_EXECUTABLE_NAME);
 
         assert!(!ffmpeg_exists(&ffmpeg_path));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_parse_checksum_html_valid() -> Result<(), TestSetupError> {
-        let ctx = TestContext::new()?;
-        let checksum = parse_checksum_html(&ctx.checksum_html).map_err(|err| TestSetupError::FailedToParseChecksums(err))?;
-
-        assert_eq!(checksum, ctx.expected_checksum);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_parse_checksum_html_invalid() -> Result<(), TestSetupError> {
-        let ctx = TestContext::new()?;
-        let checksum_parsing_result = parse_checksum_html(&ctx.invalid_checksum);
-
-        assert!(matches!(checksum_parsing_result, Err(PrepareServiceError::FailedToParseChecksums())));
 
         Ok(())
     }
@@ -821,8 +830,8 @@ pub mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_ffmpeg_download_and_unzip() -> Result<(), TestSetupError> {
+    #[tokio::test]
+    async fn test_ffmpeg_download_and_unzip() -> Result<(), TestSetupError> {
         use httpmock::MockServer;
         let server = MockServer::start();
 
@@ -855,7 +864,7 @@ pub mod tests {
         ctx.set_ffmpeg_dl_mirror(format!("{}/ffmpeg.7z", server.url("")));
         ctx.set_ffmpeg_sha_dl_mirror(format!("{}/checksum", server.url("")));
 
-        prepare_ffmpeg(&ctx.config_mock).map_err(|err| TestSetupError::FailedToPrepareFfmpeg(err))?;
+        prepare_ffmpeg(&ctx.config_mock).await.map_err(|err| TestSetupError::FailedToPrepareFfmpeg(err))?;
 
         assert!(ctx.config_mock.media.ffmpeg_exe_path.exists());
 
