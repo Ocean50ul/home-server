@@ -1,32 +1,34 @@
-**Server startup**
+## Server Startup.
 
-`cargo run server dry-start` will run the server without scaning audio lib, resampling and synchronizing DB state with the music lib state.
+Right now there is the only one way to try the server: clone the repository, build it and prepare the environment.
 
-**WARNING**
-Server use resampler. There is different resampling policies, on of which is called InPlace. It will REPLACE audio tracks inside `./data/media/music/` with resampled ones. Right now its the only working policy, so be carefull, there is no backups yet.
+```
+git clone https://github.com/Ocean50ul/home-server.git
+cargo build
+cargo run prepare
+cargo run serve
+```
 
-`cargo run server start` will run the server with all necessary services. **WARNING** resample service will REPLACE all the tracks that has higher than 88200hz with resampled ones. Different resample policies will be added later.
+Cargo and git are obviously required.
 
-**Running Tests.**
+Environment preparation (`cargo run prepare`) includes:
+1. Creating directories and DB instance.
+2. Downloading ffmpeg archive from a mirror (url is stored inside config.toml, gyan.dev is default one, you can use whatever you want)
+3. Archive integrity check (url for sha checksum is also inside config.toml, gyan.dev is default one, you can use whatever you want)
+4. Extracting ffmpeg.exe and cleaning things up
 
-To run the tests suit, you need first to prepare fixtures, which includes creating dummy audio files and folders with stripped permissions.
+Dockerfile and pre-build binaries are coming soon.
 
-// FIXTURES CREATION NOT WORKING YET, SRY
+## Resampling
 
-`cargo run prepare-fixtures` will create all the necessary things inside ./test-fixtures.
+**!!!WARNING!!!**
 
-`cargo run cleanup-fixtures` will return all the permissions and delete all the fixtures. 
+Server is using resampler, since html `<audio>` tag cant handle anything above 88200hz. Right now, it will REPLACE audio tracks inside `./data/media/music/` with resampled ones. 
 
-// FIXTURES CREATION NOT WORKING YET, SRY
+**I repeat**, all your tracks **inside** `./data/media/music/` that have high sample rate are going to be **REPLACED**, so take care.
 
-`cargo test` will run the test suite. If there is no fixtures, it will skip all the tests that was dependent on those fixutres and print out warnings.
+Different resample policies are cooming soon.
 
-For now, the only target for tests is Windows.
+## Target OS
 
-**FFMPEG**
-
-This project uses ffmpeg binary (`home-server/ffmpeg/ffmpeg.exe`) to resample audio files which are above 88200hz (thats threshold above which html `<audio>` tag can't do shit about) and to create dummy test fixtures. FFmpeg is licensed under the GNU Lesser General Public License (LGPL).
-
-The tool was downloaded from https://ffmpeg.org/
-
-TODO: shipping .exe is kinda sus, so i will make a script that downloads a thing from a trustworthy mirror and verify it with checksums.
+The only target OS right now is **WINDOWS**. 
