@@ -25,8 +25,9 @@ The service should be run via CLI: e.g. cargo run prepare.
 
 */
 
-use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{copy, Read}, path::{Path, PathBuf}, process::Command};
+use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{copy, Read, Write}, path::{Path, PathBuf}, process::Command};
 
+use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use sevenz_rust2::{self, default_entry_extract_fn};
@@ -89,13 +90,50 @@ fn ffmpeg_exists(path: &Path) -> bool {
 }
 
 fn download_ffmpeg_zip_essentials(dest_file_path: &Path, url: &str) -> Result<(), PrepareServiceError> {
+    println!("Downloading ffmpeg from {}", url);
+    
     let mut dest_file = File::create(dest_file_path)
         .map_err(|err| PrepareServiceError::ErrorCreatingDestinationFile(err))?;
 
     let mut response = reqwest::blocking::get(url)?.error_for_status()?;
 
-    copy(&mut response, &mut dest_file)
-        .map_err(|err| PrepareServiceError::ErrorCopyingIntoDestinationFile(err))?;
+    let pb: ProgressBar;
+    if let Some(total_size) = response.content_length() {
+        // --- CASE 1: Content-Length EXISTS ---
+        pb = ProgressBar::new(total_size);
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
+            .unwrap()
+            .progress_chars("#>-"));
+    } else {
+        // --- CASE 2: Content-Length IS MISSING ---
+        pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {bytes} downloaded ({bytes_per_sec})")
+            .unwrap());
+    }
+
+    // A standard 8KB buffer
+    let mut buffer = [0; 8192];
+    loop {
+        match response.read(&mut buffer) {
+            Ok(bytes_read) => {
+                // If bytes_read is 0, the stream has ended.
+                if bytes_read == 0 {
+                    break;
+                }
+                // Write the chunk to the file
+                dest_file.write_all(&buffer[..bytes_read])
+                    .map_err(|err| PrepareServiceError::ErrorCopyingIntoDestinationFile(err))?;
+                
+                // Increment the progress bar by the number of bytes read
+                pb.inc(bytes_read as u64);
+            }
+            Err(e) => {
+                return Err(PrepareServiceError::ErrorCopyingIntoDestinationFile(e));
+            }
+        }
+    }
+
+    pb.finish_with_message("Download complete");
 
     Ok(())
 }
@@ -210,7 +248,7 @@ pub fn prepare_db(config: &Config) -> Result<(), PrepareServiceError> {
 /* ======================= DIRS PREPARATION PART ======================= */
 pub fn prepare_dirs(config: &Config) -> Result<(), PrepareServiceError> {
 
-    // bad practice, buuuut
+    // bad practice to unwrap things, buuuut
     let db_path = config.database.path.parent().map(|p| p.to_path_buf()).unwrap();
 
     let paths = vec![
@@ -529,7 +567,7 @@ pub fn cleanup(fixtures_state_json: &Path) -> Result<(), FixturesSetupError> {
     Ok(())
 }
 
-pub fn run_prepare_service() -> Result<(), PrepareServiceError> {
+pub fn run_prepare_devspace() -> Result<(), PrepareServiceError> {
     let config = get_config()?;
 
     prepare_dirs(config)?;
@@ -539,6 +577,16 @@ pub fn run_prepare_service() -> Result<(), PrepareServiceError> {
     let mut fixtures_context = FixturesContext::new();
     prepare_fixtures(&mut fixtures_context)?;
     create_fixture_audio_files(config)?;
+
+    Ok(())
+}
+
+pub fn run_prepare_userspace() -> Result<(), PrepareServiceError> {
+    let config = get_config()?;
+
+    prepare_dirs(config)?;
+    prepare_db(config)?;
+    prepare_ffmpeg(config)?;
 
     Ok(())
 }
@@ -817,5 +865,5 @@ pub mod tests {
         assert!(!ctx.config_mock.media.ffmpeg_dir_path.join("ffmpeg.7z").exists());
 
         Ok(())
-    }
+}
 }

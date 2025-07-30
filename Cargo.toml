@@ -34,3 +34,4 @@ reqwest = { version = "0.12.22", features = ["blocking", "rustls-tls"] }
 sha2 = "0.10.9"
 sevenz-rust2 = "0.17.1"
 httpmock = "0.7.0"
+indicatif = "0.18.0"
