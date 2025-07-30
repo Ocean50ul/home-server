@@ -93,15 +93,6 @@ pub(crate) mod test_helpers {
 
         #[error("Error during setting up access tests: {0}")]
         SystemRootVariableNotFound(#[from] VarError),
-
-        #[error("Heeey, there is no icacls on your machine. Welp, thats bad.")]
-        IcaclsNotFound(),
-
-        #[error("Ivalid input path for a strip_permission function: {0}")]
-        InvalidPath(String),
-
-        #[error("Icacls command execution returned an error: {0}")]
-        IcaclsCommandError(String)
     }
 
     pub async fn prepare_db() -> Result<SqlitePool, SqlxError> {
