@@ -1,6 +1,6 @@
-use std::{path::{Path, PathBuf}, process::{Command, ExitStatus}};
+use std::{path::{Path, PathBuf}, process::{Command, ExitStatus}, fs};
 
-use std::fs;
+use indicatif::{ProgressBar, ProgressStyle, ParallelProgressIterator};
 use rayon::{prelude::*, ThreadPoolBuildError, ThreadPoolBuilder};
 
 use crate::{domain::audiofile::{AudioFileDescriptor, AudioFileType}, services::scanner::ScanResult};
@@ -162,6 +162,8 @@ impl Resampler for FfmpegResampler {
 
         let status = Command::new(&self.ffmpeg_path)
             .args([
+                "-loglevel", "error",
+                "-y",
                 "-i", &inpt_path_str,
                 "-ar", &file_type.get_resample_target_rate().to_string(),
                 "-c:a", file_type.as_str(),
@@ -190,6 +192,21 @@ impl<R: Resampler + Sync + Send> ResampleService<R> {
 
     pub fn resample_library(&self, scan_result: &ScanResult) -> Result<ResampleReport, ResampleError> {
 
+        let num_descriptors = scan_result.descriptors.len() as u64;
+
+        if num_descriptors == 0 {
+            return Ok(ResampleReport::new());
+        }
+
+        println!("\nHandling music lib resample..");
+
+        let pb = ProgressBar::new(num_descriptors);
+
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+            .unwrap()
+            .progress_chars("#>-"));
+
         let pool = ThreadPoolBuilder::new()
             .num_threads(self.config.parallelism.max_threads())
             .build()?;
@@ -200,9 +217,12 @@ impl<R: Resampler + Sync + Send> ResampleService<R> {
             scan_result
                 .descriptors
                 .par_iter()
+                .progress_with(pb.clone()) 
                 .map(|desc| self.handle_descriptor(desc))
                 .collect()
         });
+
+        pb.finish_with_message("Resampling complete!");
 
         // Make a report sequentially.
         let mut report = ResampleReport::new();

@@ -60,7 +60,7 @@ pub(crate) mod test_helpers {
 
     use crate::{domain::{audiofile::AudioFileMetadata, ValidationError}, repository::RepositoryError, services::{ScanError, SyncServiceError}, utils::normalizations::normalize_name};
 
-    pub const TEST_TRACKS_PATH: &str = r".\tests\tests_files";
+    pub const TEST_TRACKS_PATH: &str = r".\test_fixtures\files";
     
     #[derive(Debug, thiserror::Error)]
     pub enum TestSetupError {
@@ -171,11 +171,11 @@ pub(crate) mod test_helpers {
         pub fn get_metadata(&self) -> AudioFileMetadata {
             match &self {
                 &FixtureFileNames::FlacValidMetadata => AudioFileMetadata {
-                    artist_name: normalize_name("Chevelle"),
-                    album_name: normalize_name("Wonder What's Next"),
-                    album_year: Some(2002),
-                    track_name: normalize_name("Closure"),
-                    track_duration: (4 * 60) + 11,
+                    artist_name: "FLAC test artist".to_string(),
+                    album_name: "FLAC test album".to_string(),
+                    album_year: Some(2023),
+                    track_name: "FLAC test title".to_string(),
+                    track_duration: 5,
                     sample_rate: None
                 },
                 &FixtureFileNames::Mp3ValidMetadata => AudioFileMetadata {

@@ -1,30 +1,3 @@
-/*
-
-We need a setup mechanism that prepares the development or production environment automatically, so contributors and users can run the server with minimal manual steps.
-
-This service should handle:
-
-    FFmpeg binary:
-        Check if ffmpeg.exe exists (ffmpeg/ffmpeg.exe)
-        If not, download it from the official source
-        Verify checksum before using
-
-    Database:
-        Check if the local database file exists (data/db/database.db)
-        If not, create the database and run necessary migrations (data/db/migrations/)
-
-    Directory structure:
-        Ensure all required directories exist (data/media/music, data/media/videos, etc.)
-        Skip if services already create them automatically - investigate this
-
-    Test fixtures:
-        Create or verify necessary test fixture files or directories
-        Caveat: part of the fixtures are file and two dirs with stripped permissions. Existence checks might be non-trivial - investigate this
-
-The service should be run via CLI: e.g. cargo run prepare.
-
-*/
-
 use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
 use tokio::io::AsyncWriteExt;
 
@@ -858,7 +831,7 @@ pub mod tests {
         let hex = format!("{:x}", hasher.finalize());
         server.mock(|when, then| {
             when.path("/checksum");
-            then.status(200).body(format!("<html><body><pre>{}</pre></body></html>", hex));
+            then.status(200).body(format!("{}", hex));
         });
 
         ctx.set_ffmpeg_dl_mirror(format!("{}/ffmpeg.7z", server.url("")));
