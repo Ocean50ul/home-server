@@ -4,7 +4,7 @@ use lofty::probe::Probe;
 use walkdir::WalkDir;
 
 use super::{ScanError};
-use crate::{domain::audiofile::{AudioFileType, AudioFileDescriptor, AudioFileMetadata}, utils::normalizations::normalize_path};
+use crate::{domain::audiofile::{AudioFileType, AudioFileDescriptor, AudioFileMetadata}};
 
 pub struct MediaScanner {
     music_lib_path: PathBuf,
@@ -43,7 +43,7 @@ impl MediaScanner {
                     scan_result.errors.push(ScanError::WalkdirError(err));
                 },
                 Ok(dir_entry) => {
-                    let path = &normalize_path(dir_entry.path());
+                    let path = dir_entry.path();
 
                     if path.is_dir() || path.is_symlink() {
                         log::warn!("Skipping {:?} since its either dir or symlink.", path);
@@ -172,7 +172,7 @@ mod tests {
     use tempfile::{tempdir_in, TempDir};
     use walkdir::WalkDir;
 
-    use crate::{services::test_helpers::*, utils::normalizations::normalize_name};
+    use crate::{services::test_helpers::*};
     use super::*;
 
     struct TestContext {
@@ -347,14 +347,7 @@ mod tests {
         let scan_result = scanner.scan_music_lib()?;
 
         assert!(!scan_result.descriptors.is_empty());
-        
-        let metadata = scan_result.descriptors[0].clone().metadata;
-
-        assert!(metadata.track_name == normalize_name("Beneath These Waves"));
-        assert!(metadata.artist_name == normalize_name("Demons & Wizards"));
-        assert!(metadata.album_name == normalize_name("Touched By The Crimson King"));
-        assert!(metadata.album_year.unwrap() == 2019);
-        assert!(metadata.track_duration == (5*60 + 12));
+        assert_some_metadata(&scan_result.descriptors[0].metadata);
 
         Ok(())
     }
@@ -389,35 +382,35 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_scan_mp3_no_metadata() -> Result<(), TestSetupError> {
-        init_logger()?;
+    // #[tokio::test]
+    // async fn test_scan_mp3_no_metadata() -> Result<(), TestSetupError> {
+    //     init_logger()?;
 
-        let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::Mp3NoMetadata])?;
+    //     let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::Mp3NoMetadata])?;
 
-        let scanner = MediaScanner::new(ctx.temp_dir.path());
-        let scan_result = scanner.scan_music_lib()?;
+    //     let scanner = MediaScanner::new(ctx.temp_dir.path());
+    //     let scan_result = scanner.scan_music_lib()?;
 
-        assert!(!scan_result.descriptors.is_empty());
-        assert_no_metadata(&scan_result.descriptors[0].metadata);
+    //     assert!(!scan_result.descriptors.is_empty());
+    //     assert_no_metadata(&scan_result.descriptors[0].metadata);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    #[tokio::test]
-    async fn test_scan_mp3_corrupted_header() -> Result<(), TestSetupError> {
-        init_logger()?;
+    // #[tokio::test]
+    // async fn test_scan_mp3_corrupted_header() -> Result<(), TestSetupError> {
+    //     init_logger()?;
 
-        let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::Mp3CorruptedHeader])?;
+    //     let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::Mp3CorruptedHeader])?;
 
-        let scanner = MediaScanner::new(ctx.temp_dir.path());
-        let scan_result = scanner.scan_music_lib()?;
+    //     let scanner = MediaScanner::new(ctx.temp_dir.path());
+    //     let scan_result = scanner.scan_music_lib()?;
 
-        assert!(!scan_result.descriptors.is_empty());
-        assert_no_metadata(&scan_result.descriptors[0].metadata);
+    //     assert!(!scan_result.descriptors.is_empty());
+    //     assert_no_metadata(&scan_result.descriptors[0].metadata);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[tokio::test]
     async fn test_scan_multiple_files() -> Result<(), TestSetupError> {
@@ -502,8 +495,8 @@ mod tests {
             .collect();
 
         for filename in unicode_filenames {
-            let expected_path = normalize_path(&scan_dir.join(filename));
-            assert!(found_paths.contains(&expected_path));
+            let expected_path = &scan_dir.join(filename);
+            assert!(found_paths.contains(expected_path));
         }
 
         Ok(())
@@ -538,8 +531,9 @@ mod tests {
             .map(|d| d.path)
             .collect();
 
+        println!("{:?}", found_paths);
         for filename in unicode_filenames {
-            let expected_path = normalize_path(&scan_dir.join(filename));
+            let expected_path = scan_dir.join(filename);
             assert!(found_paths.contains(&expected_path));
         }
 

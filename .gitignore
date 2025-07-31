@@ -7,3 +7,5 @@
 /data/media/music/*
 /data/media/music/.resampled/*
 /data/media/videos/*
+/ffmpeg/*
+/test_fixtures
