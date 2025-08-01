@@ -1,3 +1,6 @@
+// DEPRICATED
+// rewrote it.
+
 use std::{fs, io::{self, Write}, path::{Path, PathBuf}, sync::{Arc, Mutex}};
 use anyhow::{Error, anyhow};
 use rayon::prelude::*;
