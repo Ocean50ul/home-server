@@ -18,3 +18,4 @@ ffmpeg_donwload_mirror = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-esse
 ffmpeg_sha_download_mirror = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z.sha256"
 
 test_fixtures_path = "./test_fixtures"
+audio_fixtures_json_path = "./audio_fixtures.json"

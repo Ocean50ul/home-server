@@ -2,6 +2,7 @@ use std::{collections::{HashMap, HashSet}, path::PathBuf};
 
 use chrono::{Local, NaiveDateTime};
 use futures::TryStreamExt;
+use serde::de;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -83,6 +84,8 @@ impl<'a> MusicLibSyncService<'a> {
 
         let mut tx = self.pool.begin().await?;
         let mut report = SyncServiceReport::new(Local::now().naive_local());
+
+        println!("\n\n{:?}\n{:?}\n\n", additions, deletions);
         
         // Apply deletions first.
         if !deletions.is_empty() {
@@ -177,6 +180,8 @@ impl<'a> MusicLibSyncService<'a> {
 
     async fn find_new_files(&self, music_lib_files: &Vec<AudioFileDescriptor>) -> Result<PendingAdditions, SyncServiceError> {
         let mut new_files = PendingAdditions::new();
+
+        println!("\n\nmusic lib: {:?}\ndb_cache: {:?}\n\n", music_lib_files, self.db_cache.tracks);
 
         for file in music_lib_files {
             if self.db_cache.tracks.contains_key(&file.path) {
@@ -314,6 +319,7 @@ impl PendingAdditions {
     }
 }
 
+#[derive(Debug)]
 struct PendingDeletions {
     track_ids: Vec<Uuid>,
     album_ids: Vec<Uuid>,
@@ -349,10 +355,9 @@ pub mod tests {
     use std::{fs, path::Path};
 
     use tempfile::TempDir;
-    use walkdir::WalkDir;
 
     use super::*;
-    use crate::{domain::audiofile::AudioFileType, services::test_helpers::*, utils::normalizations::normalize_path};
+    use crate::{domain::audiofile::{AudioFileMetadata, AudioFileType}, services::test_helpers::*, utils::{audio_fixtures::{load_fixtures, AudioFixture}, normalizations::{normalize_name, normalize_path}}};
 
     struct TestContext {
         pool: SqlitePool,
@@ -360,6 +365,7 @@ pub mod tests {
         alb_repo: SqliteAlbumsRepository,
         art_repo: SqliteArtistsRepository,
         temp_dir: TempDir,
+        vault: Vec<AudioFixture>,
         fixtures: Vec<PathBuf>
     }
 
@@ -372,37 +378,37 @@ pub mod tests {
                     alb_repo: SqliteAlbumsRepository::new(),
                     art_repo: SqliteArtistsRepository::new(),
                     temp_dir: tempfile::tempdir()?,
+                    vault: load_fixtures(&Path::new(TEST_FIXTURES_JSON_PATH))?,
                     fixtures: Vec::new()
                 }
             )
         }
 
         fn with_fixtures(mut self, fixture_file_names: &[FixtureFileNames]) -> Result<Self, TestSetupError> {
-            let fixture_file_names = fixture_file_names.into_iter().map(|ffm| ffm.as_str()).collect::<Vec<_>>();
-            let mut selected = Vec::new();
-
-            for entry in WalkDir::new(TEST_TRACKS_PATH).min_depth(1) {
-                let entry = entry.map_err(TestSetupError::FixtureWalkerError)?;
-                let name = entry.file_name()
-                    .to_str()
-                    .ok_or(TestSetupError::InvalidFixtureName(entry.path().to_path_buf()))?;
-
-                if fixture_file_names.contains(&name) {
-                    selected.push(entry.into_path());
-                }
-            }
+            let fixture_file_names = fixture_file_names.into_iter().map(|ffm| ffm.file_name()).collect::<Vec<_>>();
+            let selected = self.vault.iter().filter(|fxtr| fixture_file_names.contains(&fxtr.file_name));
 
             let mut new_paths = Vec::new();
 
             for src in selected {
+                println!("{:?}", src);
                 // safe unwrap since it was already unwrapped in the loop above
-                let dest = self.temp_dir.path().join(src.file_name().unwrap());
+                let dest = self.temp_dir.path().join(&src.file_name);
+                let src = PathBuf::from(format!("./test_fixtures/files/{}", &src.file_name));
+
                 fs::copy(&src, &dest)?;
                 new_paths.push(normalize_path(&dest));
             }
 
+            println!("{:?}", new_paths);
             self.fixtures = new_paths;
             Ok(self)
+        }
+
+        fn get_metadata(&self, fixture_name: FixtureFileNames) -> Result<&AudioFileMetadata, TestSetupError> {
+            self.vault.iter().find(|fxtr| fxtr.file_name == fixture_name.file_name())
+                .ok_or(TestSetupError::FixtureMetadataDoesntExist(fixture_name.file_name()))
+                .map(|fxtr| &fxtr.metadata)
         }
     }
 
@@ -412,30 +418,32 @@ pub mod tests {
 
         // Creating ctx with tempdir that has one audiofiles in it
         let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::ChevelleClosure])?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Create an Album and add it to the DB.
-        let wonder_whats_next = Album::new(Uuid::new_v4(), closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
+        let wonder_whats_next = Album::new(Uuid::new_v4(), &closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
         ctx.alb_repo.save(&ctx.pool, &wonder_whats_next).await?;
 
         // Create a track and add it to the DB.
         let trk1 = Track::new(
             Uuid::new_v4(),
-            closure_metadata.track_name,
+            &closure_metadata.track_name,
             *wonder_whats_next.id(),
             closure_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.file_name()),
             420,
-            AudioFileType::Flac,
+            AudioFileType::Mp3,
             Uploaded::Denis,
             Some(Local::now().naive_local())
         )?;
 
         ctx.trk_repo.save(&ctx.pool, &trk1).await?;
+
+        println!("{:?}\n{:?}\n{:?}\n", chevelle, wonder_whats_next, trk1);
 
         // The state is: one artist, one album and one track.
         // Expected behavior - sync service does nothing.
@@ -443,6 +451,8 @@ pub mod tests {
         // Create sync service and run it
         let sync_service = MusicLibSyncService::new(&ctx.pool, ctx.temp_dir.path().to_path_buf()).await?;
         let report = sync_service.synchronize().await?;
+
+        println!("{:?}", report);
 
         // Assert that report has nothing.
         assert_eq!(report.deleted_albums.deleted_ids.len(), 0);
@@ -521,11 +531,11 @@ pub mod tests {
 
         // Creating ctx with tempdir that has two audiofiles in it
         let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::ChevelleClosure, FixtureFileNames::ChevelleForfeit])?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
-        let forfeit_metadata = FixtureFileNames::ChevelleForfeit.get_metadata();
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
+        let forfeit_metadata = ctx.get_metadata(FixtureFileNames::ChevelleForfeit)?;
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Adding new album and two tracks, and generating a report.
@@ -544,12 +554,12 @@ pub mod tests {
         // Asserting that fetched tracks metadata is the same that fixtures ones:
         // 1. For albums.
         assert_eq!(fetched_albums[0].artist_id(), chevelle.id());
-        assert_eq!(fetched_albums[0].name(), closure_metadata.album_name);
+        assert_eq!(fetched_albums[0].name(), &closure_metadata.album_name);
 
         // 2. For tracks.
         assert_eq!(fetched_tracks.len(), 2);
 
-        let expected_track_names: HashSet<String> = [closure_metadata.track_name, forfeit_metadata.track_name].iter().map(|s| s.to_string()).collect();
+        let expected_track_names: HashSet<String> = [&closure_metadata.track_name, &forfeit_metadata.track_name].iter().map(|s| s.to_string()).collect();
         let actual_track_names: HashSet<String> = fetched_tracks.iter().map(|t| t.name().to_string()).collect();
         assert_eq!(expected_track_names, actual_track_names);
 
@@ -566,15 +576,15 @@ pub mod tests {
 
         // Creating ctx with tempdir that has two audiofiles in it
         let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::ChevelleClosure, FixtureFileNames::ChevelleForfeit])?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
-        let forfeit_metadata = FixtureFileNames::ChevelleForfeit.get_metadata();
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
+        let forfeit_metadata = ctx.get_metadata(FixtureFileNames::ChevelleForfeit)?;
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Create New Album and add it to the DB.
-        let wonder_whats_next = Album::new(Uuid::new_v4(), closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
+        let wonder_whats_next = Album::new(Uuid::new_v4(), &closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
         ctx.alb_repo.save(&ctx.pool, &wonder_whats_next).await?;
 
         // Adding two new tracks to existing album with existing artist.
@@ -590,7 +600,7 @@ pub mod tests {
         let fetched_tracks = ctx.trk_repo.stream_all(&ctx.pool).await.try_collect::<Vec<_>>().await?;
 
         // Asserting that fetched tracks has the same metadata as fixture ones.
-        let expected_track_names: HashSet<String> = [closure_metadata.track_name, forfeit_metadata.track_name].iter().map(|s| s.to_string()).collect();
+        let expected_track_names: HashSet<String> = [&closure_metadata.track_name, &forfeit_metadata.track_name].iter().map(|s| s.to_string()).collect();
         let actual_track_names: HashSet<String> = fetched_tracks.iter().map(|t| t.name().to_string()).collect();
         assert_eq!(expected_track_names, actual_track_names);
 
@@ -612,24 +622,24 @@ pub mod tests {
 
         // Creating ctx with tempdir that has one audiofiles in it
         let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::ChevelleClosure])?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
-        let forfeit_metadata = FixtureFileNames::ChevelleForfeit.get_metadata(); // <- this track has no audifile associated with it
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
+        let forfeit_metadata = ctx.get_metadata(FixtureFileNames::ChevelleForfeit)?; // <- this track has no audifile associated with it
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Create New Album and add it to the DB.
-        let wonder_whats_next = Album::new(Uuid::new_v4(), closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
+        let wonder_whats_next = Album::new(Uuid::new_v4(), &closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
         ctx.alb_repo.save(&ctx.pool, &wonder_whats_next).await?;
 
         // Create TWO tracks and add them to the DB.
         let trk1 = Track::new(
             Uuid::new_v4(),
-            closure_metadata.track_name,
+            &closure_metadata.track_name,
             *wonder_whats_next.id(),
             closure_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.file_name()),
             420,
             AudioFileType::Flac,
             Uploaded::Denis,
@@ -638,10 +648,10 @@ pub mod tests {
 
         let trk2 = Track::new(
             Uuid::new_v4(),
-            forfeit_metadata.track_name,
+            &forfeit_metadata.track_name,
             *wonder_whats_next.id(),
             forfeit_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleForfeit.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleForfeit.file_name()),
             420,
             AudioFileType::Flac,
             Uploaded::Denis,
@@ -691,15 +701,15 @@ pub mod tests {
 
         // Creating ctx with tempdir that has one audiofiles in it
         let ctx = TestContext::new().await?.with_fixtures(&[FixtureFileNames::ChevelleClosure])?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
-        let forfeit_metadata = FixtureFileNames::ChevelleForfeit.get_metadata();
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
+        let forfeit_metadata = ctx.get_metadata(FixtureFileNames::ChevelleForfeit)?;
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Create two Albums and add them to the DB.
-        let wonder_whats_next = Album::new(Uuid::new_v4(), closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
+        let wonder_whats_next = Album::new(Uuid::new_v4(), &closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
         let should_be_deleted = Album::new(Uuid::new_v4(), "Please delete me", *chevelle.id(), closure_metadata.album_year)?;
 
         ctx.alb_repo.save_all(&ctx.pool, &[&wonder_whats_next, &should_be_deleted]).await?;
@@ -707,10 +717,10 @@ pub mod tests {
         // Create two tracks, associate them to two DIFFERENT albums, and add them to the DB.
         let trk1 = Track::new(
             Uuid::new_v4(),
-            closure_metadata.track_name,
+            &closure_metadata.track_name,
             *wonder_whats_next.id(),
             closure_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.file_name()),
             420,
             AudioFileType::Flac,
             Uploaded::Denis,
@@ -719,10 +729,10 @@ pub mod tests {
 
         let trk2 = Track::new(
             Uuid::new_v4(),
-            forfeit_metadata.track_name,
+            &forfeit_metadata.track_name,
             *should_be_deleted.id(),
             forfeit_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleForfeit.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleForfeit.file_name()),
             420,
             AudioFileType::Flac,
             Uploaded::Denis,
@@ -773,23 +783,23 @@ pub mod tests {
 
         // Create ctx with empty tempdir.
         let ctx = TestContext::new().await?;
-        let closure_metadata = FixtureFileNames::ChevelleClosure.get_metadata();
+        let closure_metadata = ctx.get_metadata(FixtureFileNames::ChevelleClosure)?;
 
         // Create New Artist and add it to the DB.
-        let chevelle = Artist::new(Uuid::new_v4(), closure_metadata.artist_name)?;
+        let chevelle = Artist::new(Uuid::new_v4(), &closure_metadata.artist_name)?;
         ctx.art_repo.save(&ctx.pool, &chevelle).await?;
 
         // Create New Album and add it to the DB.
-        let wonder_whats_next = Album::new(Uuid::new_v4(), closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
+        let wonder_whats_next = Album::new(Uuid::new_v4(), &closure_metadata.album_name, *chevelle.id(), closure_metadata.album_year)?;
         ctx.alb_repo.save(&ctx.pool, &wonder_whats_next).await?;
 
         // Create the track and add to the DB.
         let trk1 = Track::new(
             Uuid::new_v4(),
-            closure_metadata.track_name,
+            &closure_metadata.track_name,
             *wonder_whats_next.id(),
             closure_metadata.track_duration,
-            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.as_str()),
+            ctx.temp_dir.path().join(FixtureFileNames::ChevelleClosure.file_name()),
             420,
             AudioFileType::Flac,
             Uploaded::Denis,

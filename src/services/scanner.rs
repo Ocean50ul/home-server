@@ -4,7 +4,7 @@ use lofty::probe::Probe;
 use walkdir::WalkDir;
 
 use super::{ScanError};
-use crate::{domain::audiofile::{AudioFileType, AudioFileDescriptor, AudioFileMetadata}};
+use crate::{domain::audiofile::{AudioFileDescriptor, AudioFileMetadata, AudioFileType}, utils::normalizations::normalize_path};
 
 pub struct MediaScanner {
     music_lib_path: PathBuf,
@@ -131,7 +131,7 @@ impl MediaScanner {
         let (file_type, metadata) = self.extract_type_and_metadata(path, &mut reader);
     
         AudioFileDescriptor {
-            path: path.to_path_buf(),
+            path: normalize_path(path),
             file_size,
             file_type,
             metadata
@@ -170,13 +170,13 @@ mod tests {
     use std::{collections::HashSet, fs, os::windows::fs::{symlink_dir, symlink_file}, path::{Path, PathBuf}};
 
     use tempfile::{tempdir_in, TempDir};
-    use walkdir::WalkDir;
 
-    use crate::{services::test_helpers::*};
+    use crate::{services::test_helpers::*, utils::audio_fixtures::{load_fixtures, AudioFixture}};
     use super::*;
 
     struct TestContext {
         temp_dir: TempDir,
+        vault: Vec<AudioFixture>,
         fixtures: Vec<PathBuf>
     }
 
@@ -185,6 +185,7 @@ mod tests {
             Ok(
                 Self {
                     temp_dir: tempfile::tempdir()?,
+                    vault: load_fixtures(&Path::new(TEST_FIXTURES_JSON_PATH))?,
                     fixtures: Vec::new()
                 }
             )
@@ -198,25 +199,16 @@ mod tests {
         }
 
         fn with_fixtures(mut self, fixture_file_names: &[FixtureFileNames]) -> Result<Self, TestSetupError> {
-            let fixture_file_names = fixture_file_names.into_iter().map(|ffm| ffm.as_str()).collect::<Vec<_>>();
-            let mut selected = Vec::new();
-
-            for entry in WalkDir::new(TEST_TRACKS_PATH).min_depth(1) {
-                let entry = entry.map_err(TestSetupError::FixtureWalkerError)?;
-                let name = entry.file_name()
-                    .to_str()
-                    .ok_or(TestSetupError::InvalidFixtureName(entry.path().to_path_buf()))?;
-
-                if fixture_file_names.contains(&name) {
-                    selected.push(entry.into_path());
-                }
-            }
+            let fixture_file_names = fixture_file_names.into_iter().map(|ffm| ffm.file_name()).collect::<Vec<_>>();
+            let selected = self.vault.iter().filter(|fxtr| fixture_file_names.contains(&fxtr.file_name));
 
             let mut new_paths = Vec::new();
 
             for src in selected {
                 // safe unwrap since it was already unwrapped in the loop above
-                let dest = self.temp_dir.path().join(src.file_name().unwrap());
+                let dest = self.temp_dir.path().join(&src.file_name);
+                let src = PathBuf::from(format!("./test_fixtures/files/{}", &src.file_name));
+
                 fs::copy(&src, &dest)?;
                 new_paths.push(self.normalize_path(&dest));
             }
@@ -495,8 +487,8 @@ mod tests {
             .collect();
 
         for filename in unicode_filenames {
-            let expected_path = &scan_dir.join(filename);
-            assert!(found_paths.contains(expected_path));
+            let expected_path = normalize_path(&scan_dir.join(filename));
+            assert!(found_paths.contains(&expected_path));
         }
 
         Ok(())
@@ -533,7 +525,7 @@ mod tests {
 
         println!("{:?}", found_paths);
         for filename in unicode_filenames {
-            let expected_path = scan_dir.join(filename);
+            let expected_path = normalize_path(&scan_dir.join(filename));
             assert!(found_paths.contains(&expected_path));
         }
 

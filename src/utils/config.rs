@@ -40,7 +40,8 @@ pub struct MediaConfig {
     pub ffmpeg_donwload_mirror: String,
     pub ffmpeg_sha_download_mirror: String,
     pub test_fixtures_path: PathBuf,
-    pub resampled_music_path: PathBuf
+    pub resampled_music_path: PathBuf,
+    pub audio_fixtures_json_path: PathBuf
 }
 
 impl Config {

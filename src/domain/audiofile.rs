@@ -65,7 +65,7 @@ impl AudioFileType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AudioFileMetadata {
     pub artist_name: String,
     pub album_name: String,

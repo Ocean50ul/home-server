@@ -1,0 +1,113 @@
+[
+    {
+        "file_type": "Flac",
+        "file_name": "falc_valid_metadata.flac",
+        
+        "metadata": {
+            "track_name": "looking good today",
+        
+            "track_duration": 5,
+            "sample_rate": 44100,
+
+            "album_year": 2025,
+            "album_name": "what comes previous",
+
+            "artist_name": "daywish"
+        }
+    },
+
+    {
+        "file_type": "Mp3",
+        "file_name": "mp3_valid_metadata.mp3",
+        
+        "metadata": {
+            "track_name": "im aint the same again",
+
+            "track_duration": 10,
+            "sample_rate": 44100,
+
+            "album_year": 1999,
+            "album_name": "parents aint alright",
+
+            "artist_name": "onspring"
+        }
+    },
+
+    {
+        "file_type": "Wav",
+        "file_name": "wav_valid_metadata.wav",
+        "metadata": {
+            "track_name": "i love chupa-chups and the god",
+
+            "track_duration": 8,
+            "sample_rate": 44100,
+
+            "album_year": 2006,
+            "album_name": "songs for the dead",
+
+            "artist_name": "kings of the stone age"
+        }
+    },
+
+    {
+        "file_type": "Flac",
+        "file_name": "forfeit.flac",
+        
+        "metadata": {
+            "track_name": "forfeit",
+
+            "track_duration": 5,
+            "sample_rate": 44100,
+
+            "album_year": 2002,
+            "album_name": "wonder whats next",
+
+            "artist_name": "chevelle"
+        }
+    },
+
+    {
+        "file_type": "Mp3",
+        "file_name": "closure.mp3",
+        
+        "metadata": {
+            "track_name": "closure",
+
+            "track_duration": 10,
+            "sample_rate": 44100,
+
+            "album_year": 2002,
+            "album_name": "wonder whats next",
+
+            "artist_name": "chevelle"
+        }
+    },
+
+    {
+        "file_type": "Mp3",
+        "file_name": "mp3_no_metadata.mp3",
+
+        "metadata": {
+            "track_name": "",
+            "artist_name": "",
+            "album_name": "",
+            "album_year": null,
+            "track_duration": 5,
+            "sample_rate": null
+        }
+    },
+
+    {
+        "file_type": "Mp3",
+        "file_name": "mp3_corrupted_header.mp3",
+
+        "metadata": {
+            "track_name": "some track name",
+            "artist_name": "some artist name",
+            "album_name": "some album name",
+            "album_year": 2069,
+            "track_duration": 5,
+            "sample_rate": 44100
+        }
+    }
+]

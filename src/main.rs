@@ -5,7 +5,7 @@ use anyhow::Error;
 
 use home_server::{
     cli::{Cli, Commands}, 
-    services::{prepare::{run_prepare_devspace, run_prepare_userspace}, resample::{FfmpegResampler, ResampleConfig, ResampleService, ResampleStrategy}, scanner::MediaScanner, sync::MusicLibSyncService}, 
+    services::{prepare::{create_fixture_audio_files, run_prepare_devspace, run_prepare_userspace}, resample::{FfmpegResampler, ResampleConfig, ResampleService, ResampleStrategy}, scanner::MediaScanner, sync::MusicLibSyncService}, 
     utils::{config::get_config, db::get_application_db}, 
     web::routes::create_router
 };
@@ -106,7 +106,8 @@ async fn main() -> Result<(), Error> {
             
             if args.dev {
                 println!("UNDER CONSTRUCTION");
-                run_prepare_devspace().await?;
+                let config = get_config()?;
+                create_fixture_audio_files(config)?;
             } else {
                 println!("\n\nRunning preparation service..");
                 run_prepare_userspace().await?;

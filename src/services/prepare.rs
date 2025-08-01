@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
+use std::{env::{self, VarError}, fs::{create_dir, create_dir_all, read_to_string, remove_dir_all, remove_file, write, File}, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
 use tokio::io::AsyncWriteExt;
 
 use indicatif::{ProgressBar, ProgressStyle};
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use sevenz_rust2::{self, ArchiveReader, Password};
 
-use crate::{domain::audiofile::AudioFileType, utils::config::{get_config, Config, ConfigLoadingError}};
+use crate::{domain::audiofile::AudioFileType, utils::{audio_fixtures::{load_fixtures, FixturesLoadingError}, config::{get_config, Config, ConfigLoadingError}}};
 
 const FFMPEG_EXECUTABLE_NAME: &str = "ffmpeg.exe";
 const FFMPEG_ARCHIVE_NAME: &str = "ffmpeg_zip.7z";
@@ -308,72 +308,10 @@ pub enum FixturesSetupError {
     UnsupportedFileType(String),
 
     #[error("Fixtures setup has failed. Ffmpeg returned with an error: {0}")]
-    FfmpegCommandError(String)
-}
+    FfmpegCommandError(String),
 
-pub struct AudioFixture {
-    pub path: String,
-    pub metadata: HashMap<String, String>
-}
-
-impl AudioFixture {
-    pub fn new(audio_type: AudioFileType, config: &Config) -> Result<AudioFixture, FixturesSetupError> {
-        let (file_name, metadata) = match audio_type {
-            AudioFileType::Flac => (
-                "flac_valid_metadata.flac",
-                HashMap::from([
-                    ("title".to_string(), "FLAC test title".to_string()),
-                    ("artist".to_string(), "FLAC test artist".to_string()),
-                    ("album".to_string(), "FLAC test album".to_string()),
-                    ("genre".to_string(), "FLAC test genre".to_string()),
-                    ("date".to_string(), "2023".to_string()),
-                    ("track".to_string(), "1/1".to_string()),
-                    ("comment".to_string(), "FLAC test comment".to_string())
-                ])
-            ),
-
-            AudioFileType::Mp3 => (
-                "mp3_valid_metadata.mp3",
-                HashMap::from([
-                    ("title".to_string(), "MP3 test title".to_string()),
-                    ("artist".to_string(), "MP3 test artist".to_string()),
-                    ("album".to_string(), "MP3 test album".to_string()),
-                    ("genre".to_string(), "MP3 test genre".to_string()),
-                    ("date".to_string(), "2023".to_string()),
-                    ("track".to_string(), "1".to_string()),
-                    ("comment".to_string(), "MP3 test comment".to_string())
-                ])
-            ),
-
-            AudioFileType::Wav => (
-                "wav_valid_metadata.wav",
-                HashMap::from([
-                    ("title".to_string(), "WAV test title".to_string()),
-                    ("artist".to_string(), "WAV test artist".to_string()),
-                    ("album".to_string(), "WAV test album".to_string()),
-                    ("genre".to_string(), "WAV test genre".to_string()),
-                    ("date".to_string(), "2023".to_string()),
-                    ("track".to_string(), "1".to_string()),
-                    ("comment".to_string(), "WAV test comment".to_string())
-                ])
-            ),
-
-            unsupported => return Err(FixturesSetupError::UnsupportedFileType(unsupported.as_str().to_string()))
-        };
-
-        let path = config.media.test_fixtures_path
-            .join("files")
-            .join(file_name)
-            .to_string_lossy()
-            .to_string();   
-
-        Ok(
-            Self {
-                path,
-                metadata
-            }
-        )
-    }
+    #[error(transparent)]
+    FixturesLoadingError(#[from] FixturesLoadingError)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -495,38 +433,68 @@ pub fn prepare_fixtures(fctx: &mut FixturesContext) -> Result<(), FixturesSetupE
 }
 
 pub fn create_fixture_audio_files(config: &Config) -> Result<(), FixturesSetupError> {
-    let audio_fixtures = vec![
-        AudioFixture::new(AudioFileType::Flac, config)?,
-        AudioFixture::new(AudioFileType::Mp3, config)?,
-        AudioFixture::new(AudioFileType::Wav, config)?
-    ];
+    let audio_fixtures = load_fixtures(&config.media.audio_fixtures_json_path)?;
 
-    for fix in audio_fixtures {
+    for fixture in audio_fixtures {
         let mut cmd = Command::new(&config.media.ffmpeg_exe_path);
+        
+        // Common args
+        cmd.arg("-loglevel").arg("error")
+           .arg("-y")
+           .arg("-f").arg("lavfi");
 
-        let mut args = vec![
-            "-y".to_string(),
-            "-f".to_string(), "lavfi".to_string(),
-            "-i".to_string(), "sine=frequency=880:duration=5".to_string(),
-        ];
 
-        for (key, value) in fix.metadata {
-            args.push("-metadata".to_string());
-            args.push(format!("{}={}", key, value));
+        // Track Duration
+        let sine_input = format!(
+            "sine=frequency=880:duration={}",
+            fixture.metadata.track_duration
+        );
+
+        cmd.arg("-i").arg(sine_input);
+
+        // Sample rate
+        if let Some(sample_rate) = fixture.metadata.sample_rate {
+            cmd.arg("-ar").arg(sample_rate.to_string());
         }
 
-        args.push(fix.path);
+        // Codec specific args
+        match fixture.file_type {
+            AudioFileType::Flac => {
+                cmd.args(["-c:a", "flac", "-compression_level", "5"]);
+            },
+            AudioFileType::Mp3 => {
+                cmd.args(["-c:a", "libmp3lame", "-b:a", "192k"]);
+            },
+            _ => {}
+        }
 
-        let output = cmd
-            .args(&args)
-            .output()?;
+        // Metadata
+        cmd.arg("-metadata").arg(format!("title={}", fixture.metadata.track_name));
+        cmd.arg("-metadata").arg(format!("artist={}", fixture.metadata.artist_name));
+        cmd.arg("-metadata").arg(format!("album={}", fixture.metadata.album_name));
+
+        if let Some(year) = fixture.metadata.album_year {
+            cmd.arg("-metadata").arg(format!("date={}", year));
+        }
+
+        // Output path
+        let output_path = config.media.test_fixtures_path.join("files").join(&fixture.file_name);
+        cmd.arg(&output_path);
+
+        // Command output
+        let output = cmd.output()?;
 
         if !output.status.success() {
-
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(FixturesSetupError::FfmpegCommandError(stderr.to_string()));
+
+            let error_message = format!(
+                "ffmpeg command failed for fixture: {:?}\nCommand: {:?}\nStderr: {}",
+                &fixture.file_name, cmd, stderr
+            );
+
+            return Err(FixturesSetupError::FfmpegCommandError(error_message));
         }
-}
+    }
 
     Ok(())
 }
@@ -670,7 +638,8 @@ pub mod tests {
                             ffmpeg_donwload_mirror: "mock this!".to_string(),
                             ffmpeg_sha_download_mirror: "mock this".to_string(),
                             test_fixtures_path: tempdir.path().join("test_fixtures"),
-                            resampled_music_path: tempdir.path().join("data/media/music/.resampled")
+                            resampled_music_path: tempdir.path().join("data/media/music/.resampled"),
+                            audio_fixtures_json_path: PathBuf::from("./audio_fixtures.json")
                         }
                     },
 
