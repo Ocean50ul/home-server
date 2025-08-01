@@ -1,78 +1,85 @@
 [
     {
-        "file_type": "flac",
-        "track_name": "Looking good today",
-        "track_duration": 5,
-        "sample_rate": null,
+        "file_type": "Flac",
+        "file_name": "falc_valid_metadata.flac",
+        
+        "metadata": {
+            "track_name": "Looking good today",
+        
+            "track_duration": 5,
+            "sample_rate": 44100,
 
-        "album_year": 2025,
-        "album_name": "What comes previous",
-        "artist_name": "Chavelle"
+            "album_year": 2025,
+            "album_name": "What comes previous",
+
+            "artist_name": "Daywish"
+        }
     },
 
     {
-        "file_type": "mp3",
-        "track_name": "I'm aint the same again",
-        "track_duration": 10,
-        "sample_rate": null,
+        "file_type": "Mp3",
+        "file_name": "mp3_valid_metadata.mp3",
+        
+        "metadata": {
+            "track_name": "I'm aint the same again",
 
-        "album_year": 1999,
-        "album_name": "What comes previous",
-        "artist_name": "Chavelle"
+            "track_duration": 10,
+            "sample_rate": 44100,
+
+            "album_year": 1999,
+            "album_name": "Parents aint alright",
+
+            "artist_name": "Onspring"
+        }
     },
 
     {
-        "file_type": "wav",
-        "track_name": "I love chupa-chups and the God",
-        "track_duration": 8,
-        "sample_rate": null,
+        "file_type": "Wav",
+        "file_name": "wav_valid_metadata.wav",
+        "metadata": {
+            "track_name": "I love chupa-chups and the God",
 
-        "album_year": 2006,
-        "album_name": "Drank some stuff today",
-        "artist_name": "Chavelle"
+            "track_duration": 8,
+            "sample_rate": 44100,
+
+            "album_year": 2006,
+            "album_name": "Songs for the Dead",
+
+            "artist_name": "Kings of the stone age"
+        }
     },
 
     {
-        "file_type": "flac",
-        "track_name": "Felt like shit but who cares",
-        "track_duration": 5,
-        "sample_rate": null,
+        "file_type": "Flac",
+        "file_name": "forfeit.flac",
+        
+        "metadata": {
+            "track_name": "Forfeit",
 
-        "album_year": 2025,
-        "album_name": "Drank some stuff today",
-        "artist_name": "Chavelle"
+            "track_duration": 5,
+            "sample_rate": 44100,
+
+            "album_year": 2002,
+            "album_name": "Wonder What's Next",
+
+            "artist_name": "Chevelle"
+        }
     },
 
     {
-        "file_type": "mp3",
-        "track_name": "Parents aint alright",
-        "track_duration": 10,
-        "sample_rate": null,
+        "file_type": "Mp3",
+        "file_name": "closure.mp3",
+        
+        "metadata": {
+            "track_name": "Closure",
 
-        "album_year": 1999,
-        "album_name": "Gretest hits",
-        "artist_name": "Onspring"
-    },
+            "track_duration": 10,
+            "sample_rate": 44100,
 
-    {
-        "file_type": "wav",
-        "track_name": "I love my dick and i dont feel ashamed",
-        "track_duration": 8,
-        "sample_rate": null,
+            "album_year": 2002,
+            "album_name": "Wonder What's Next",
 
-        "album_year": 2006,
-        "album_name": "Gretest hits",
-        "artist_name": "Onspring"
-    },
-
-    {
-        "file_type": "flac",
-        "track_name": "Daywalker returns",
-        "track_duration": 11,
-        "sample_rate": null,
-
-        "album_year": 2002,
-        "album_name": "I dont feel good",
-        "artist_name": "Daywish"
+            "artist_name": "Chevelle"
+        }
     }
 ]
