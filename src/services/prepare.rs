@@ -433,7 +433,7 @@ pub fn prepare_fixtures(fctx: &mut FixturesContext) -> Result<(), FixturesSetupE
 }
 
 pub fn create_fixture_audio_files(config: &Config) -> Result<(), FixturesSetupError> {
-    let audio_fixtures = load_fixtures(config)?;
+    let audio_fixtures = load_fixtures(&config.media.audio_fixtures_json_path)?;
 
     for fixture in audio_fixtures {
         let mut cmd = Command::new(&config.media.ffmpeg_exe_path);

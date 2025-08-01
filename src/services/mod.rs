@@ -58,9 +58,9 @@ pub(crate) mod test_helpers {
     use sqlx::{Error as SqlxError, SqlitePool};
     use tempfile::{NamedTempFile, Builder};
 
-    use crate::{domain::{audiofile::AudioFileMetadata, ValidationError}, repository::RepositoryError, services::{ScanError, SyncServiceError}, utils::normalizations::normalize_name};
+    use crate::{domain::{audiofile::AudioFileMetadata, ValidationError}, repository::RepositoryError, services::{ScanError, SyncServiceError}, utils::{audio_fixtures::FixturesLoadingError, normalizations::normalize_name}};
 
-    pub const TEST_TRACKS_PATH: &str = r".\test_fixtures\files";
+    pub const TEST_FIXTURES_JSON_PATH: &str = r"./audio_fixtures.json";
     
     #[derive(Debug, thiserror::Error)]
     pub enum TestSetupError {
@@ -93,6 +93,12 @@ pub(crate) mod test_helpers {
 
         #[error("Error during setting up access tests: {0}")]
         SystemRootVariableNotFound(#[from] VarError),
+
+        #[error(transparent)]
+        FixturesLoadingError(#[from] FixturesLoadingError),
+
+        #[error("Couldnt find fixture metadata: {0}")]
+        FixtureMetadataDoesntExist(String)
     }
 
     pub async fn prepare_db() -> Result<SqlitePool, SqlxError> {
@@ -156,64 +162,17 @@ pub(crate) mod test_helpers {
     }
 
     impl FixtureFileNames {
-        pub fn as_str(&self) -> &str {
-            match &self {
-                &FixtureFileNames::FlacValidMetadata => "flac_valid_metadata.flac",
-                &FixtureFileNames::Mp3ValidMetadata => "mp3_valid_metadata.mp3",
-                &FixtureFileNames::WavValidMetadata => "wav_valid_metadata.wav",
-                &FixtureFileNames::Mp3CorruptedHeader => "mp3_corrupted_header.mp3",
-                &FixtureFileNames::Mp3NoMetadata => "mp3_no_metadata.mp3",
-                &FixtureFileNames::ChevelleClosure => "flac_valid_metadata.flac",
-                &FixtureFileNames::ChevelleForfeit => "flac_valid_metadata2.flac"
-            }
-        }
+        pub fn file_name(&self) -> String {
+            match self {
+                FixtureFileNames::FlacValidMetadata => "falc_valid_metadata.flac".to_string(),
+                FixtureFileNames::Mp3ValidMetadata => "mp3_valid_metadata.mp3".to_string(),
+                FixtureFileNames::WavValidMetadata => "wav_valid_metadata.wav".to_string(),
 
-        pub fn get_metadata(&self) -> AudioFileMetadata {
-            match &self {
-                &FixtureFileNames::FlacValidMetadata => AudioFileMetadata {
-                    artist_name: "FLAC test artist".to_string(),
-                    album_name: "FLAC test album".to_string(),
-                    album_year: Some(2023),
-                    track_name: "FLAC test title".to_string(),
-                    track_duration: 5,
-                    sample_rate: None
-                },
-                &FixtureFileNames::Mp3ValidMetadata => AudioFileMetadata {
-                    artist_name: normalize_name("Demons & Wizards"),
-                    album_name: normalize_name("Touched By The Crimson King"),
-                    album_year: Some(2019),
-                    track_name: normalize_name("Beneath These Waves"),
-                    track_duration: (5 * 60) + 12,
-                    sample_rate: None
-                },
-                &FixtureFileNames::WavValidMetadata => AudioFileMetadata {
-                    artist_name: normalize_name("Tristania"),
-                    album_name: normalize_name("Widow's Weeds"),
-                    album_year: Some(1998),
-                    track_name: normalize_name("Midwintertears"),
-                    track_duration: (8 * 60) + 32,
-                    sample_rate: None
-                },
+                FixtureFileNames::Mp3NoMetadata => "mp3_no_metadata.mp3".to_string(),
+                FixtureFileNames::Mp3CorruptedHeader => "mp3_corrupted_header.mp3".to_string(),
 
-                &FixtureFileNames::ChevelleClosure => AudioFileMetadata {
-                    artist_name: normalize_name("Chevelle"),
-                    album_name:normalize_name("Wonder What's Next"),
-                    album_year: Some(2002),
-                    track_name: normalize_name("Closure"),
-                    track_duration: (4 * 60) + 11,
-                    sample_rate: None
-                },
-
-                &FixtureFileNames::ChevelleForfeit => AudioFileMetadata {
-                    artist_name: normalize_name("Chevelle"),
-                    album_name: normalize_name("Wonder What's Next"),
-                    album_year: Some(2002),
-                    track_name: normalize_name("Forfeit"),
-                    track_duration: (3 * 60) + 59,
-                    sample_rate: None
-                },
-
-                _ => AudioFileMetadata::default()
+                FixtureFileNames::ChevelleForfeit => "forfeit.flac".to_string(),
+                FixtureFileNames::ChevelleClosure => "closure.mp3".to_string()
             }
         }
     }

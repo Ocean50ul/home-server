@@ -1,97 +1,91 @@
 [
     {
-        "id": "FlacValidMetadata",
         "file_type": "Flac",
         "file_name": "falc_valid_metadata.flac",
         
         "metadata": {
-            "track_name": "Looking good today",
+            "track_name": "looking good today",
         
             "track_duration": 5,
             "sample_rate": 44100,
 
             "album_year": 2025,
-            "album_name": "What comes previous",
+            "album_name": "what comes previous",
 
-            "artist_name": "Daywish"
+            "artist_name": "daywish"
         }
     },
 
     {
-        "id": "Mp3ValidMetadata",
         "file_type": "Mp3",
         "file_name": "mp3_valid_metadata.mp3",
         
         "metadata": {
-            "track_name": "I'm aint the same again",
+            "track_name": "im aint the same again",
 
             "track_duration": 10,
             "sample_rate": 44100,
 
             "album_year": 1999,
-            "album_name": "Parents aint alright",
+            "album_name": "parents aint alright",
 
-            "artist_name": "Onspring"
+            "artist_name": "onspring"
         }
     },
 
     {
-        "id": "WavValidMetadata",
         "file_type": "Wav",
         "file_name": "wav_valid_metadata.wav",
         "metadata": {
-            "track_name": "I love chupa-chups and the God",
+            "track_name": "i love chupa-chups and the god",
 
             "track_duration": 8,
             "sample_rate": 44100,
 
             "album_year": 2006,
-            "album_name": "Songs for the Dead",
+            "album_name": "songs for the dead",
 
-            "artist_name": "Kings of the stone age"
+            "artist_name": "kings of the stone age"
         }
     },
 
     {
-        "id": "ChevelleForfeit",
         "file_type": "Flac",
         "file_name": "forfeit.flac",
         
         "metadata": {
-            "track_name": "Forfeit",
+            "track_name": "forfeit",
 
             "track_duration": 5,
             "sample_rate": 44100,
 
             "album_year": 2002,
-            "album_name": "Wonder What's Next",
+            "album_name": "wonder whats next",
 
-            "artist_name": "Chevelle"
+            "artist_name": "chevelle"
         }
     },
 
     {
-        "if": "ChevelleClosure",
         "file_type": "Mp3",
         "file_name": "closure.mp3",
         
         "metadata": {
-            "track_name": "Closure",
+            "track_name": "closure",
 
             "track_duration": 10,
             "sample_rate": 44100,
 
             "album_year": 2002,
-            "album_name": "Wonder What's Next",
+            "album_name": "wonder whats next",
 
-            "artist_name": "Chevelle"
+            "artist_name": "chevelle"
         }
     },
 
     {
-        "id": "Mp3NoMetadata",
         "file_type": "Mp3",
-        "file_name": "no_metadata.mp3",
+        "file_name": "mp3_no_metadata.mp3",
 
         "metadata": {
             "track_name": "",
@@ -104,14 +98,13 @@
     },
 
     {
-        "id": "Mp3CorruptedHeader",
         "file_type": "Mp3",
-        "file_name": "to_corrupt.mp3",
+        "file_name": "mp3_corrupted_header.mp3",
 
         "metadata": {
-            "track_name": "Some track name",
-            "artist_name": "Some artist name",
-            "album_name": "Some album name",
+            "track_name": "some track name",
+            "artist_name": "some artist name",
+            "album_name": "some album name",
             "album_year": 2069,
             "track_duration": 5,
             "sample_rate": 44100

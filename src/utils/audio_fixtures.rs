@@ -1,8 +1,8 @@
-use std::{fs::read_to_string, path::PathBuf};
+use std::{fs::read_to_string, path::{Path, PathBuf}};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{domain::audiofile::{AudioFileMetadata, AudioFileType}, utils::config::Config};
+use crate::{domain::audiofile::{AudioFileMetadata, AudioFileType}};
 
 #[derive(Debug, thiserror::Error)]
 pub enum FixturesLoadingError {
@@ -16,7 +16,7 @@ pub enum FixturesLoadingError {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct AudioFixture {
     pub file_type: AudioFileType,
-    pub file_name: PathBuf,
+    pub file_name: String,
 
     pub metadata: AudioFileMetadata
 }
@@ -25,8 +25,8 @@ impl AudioFixture {
 
 }
 
-pub fn load_fixtures(config: &Config) -> Result<Vec<AudioFixture>, FixturesLoadingError> {
-    let json_string = read_to_string(&config.media.audio_fixtures_json_path)?;
+pub fn load_fixtures(fixutres_json_path: &Path) -> Result<Vec<AudioFixture>, FixturesLoadingError> {
+    let json_string = read_to_string(fixutres_json_path)?;
     let fixtures = serde_json::from_str(&json_string)?;
 
     Ok(fixtures)
