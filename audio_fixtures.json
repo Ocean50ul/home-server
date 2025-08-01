@@ -1,0 +1,78 @@
+[
+    {
+        "file_type": "flac",
+        "track_name": "Looking good today",
+        "track_duration": 5,
+        "sample_rate": null,
+
+        "album_year": 2025,
+        "album_name": "What comes previous",
+        "artist_name": "Chavelle"
+    },
+
+    {
+        "file_type": "mp3",
+        "track_name": "I'm aint the same again",
+        "track_duration": 10,
+        "sample_rate": null,
+
+        "album_year": 1999,
+        "album_name": "What comes previous",
+        "artist_name": "Chavelle"
+    },
+
+    {
+        "file_type": "wav",
+        "track_name": "I love chupa-chups and the God",
+        "track_duration": 8,
+        "sample_rate": null,
+
+        "album_year": 2006,
+        "album_name": "Drank some stuff today",
+        "artist_name": "Chavelle"
+    },
+
+    {
+        "file_type": "flac",
+        "track_name": "Felt like shit but who cares",
+        "track_duration": 5,
+        "sample_rate": null,
+
+        "album_year": 2025,
+        "album_name": "Drank some stuff today",
+        "artist_name": "Chavelle"
+    },
+
+    {
+        "file_type": "mp3",
+        "track_name": "Parents aint alright",
+        "track_duration": 10,
+        "sample_rate": null,
+
+        "album_year": 1999,
+        "album_name": "Gretest hits",
+        "artist_name": "Onspring"
+    },
+
+    {
+        "file_type": "wav",
+        "track_name": "I love my dick and i dont feel ashamed",
+        "track_duration": 8,
+        "sample_rate": null,
+
+        "album_year": 2006,
+        "album_name": "Gretest hits",
+        "artist_name": "Onspring"
+    },
+
+    {
+        "file_type": "flac",
+        "track_name": "Daywalker returns",
+        "track_duration": 11,
+        "sample_rate": null,
+
+        "album_year": 2002,
+        "album_name": "I dont feel good",
+        "artist_name": "Daywish"
+    }
+]
