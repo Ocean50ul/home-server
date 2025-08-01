@@ -670,7 +670,8 @@ pub mod tests {
                             ffmpeg_donwload_mirror: "mock this!".to_string(),
                             ffmpeg_sha_download_mirror: "mock this".to_string(),
                             test_fixtures_path: tempdir.path().join("test_fixtures"),
-                            resampled_music_path: tempdir.path().join("data/media/music/.resampled")
+                            resampled_music_path: tempdir.path().join("data/media/music/.resampled"),
+                            audio_fixtures_json_path: tempdir.path().join("./audio_fixtures.json")
                         }
                     },
 

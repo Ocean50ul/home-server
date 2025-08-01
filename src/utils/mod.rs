@@ -1,4 +1,4 @@
 pub mod normalizations;
 pub mod db;
 pub mod config;
-// pub mod resample;
+pub mod audio_fixtures;
