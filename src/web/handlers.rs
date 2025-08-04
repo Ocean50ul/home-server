@@ -1,4 +1,4 @@
-use axum::{extract::{Path, Request, State}, http::{StatusCode}, response::{Html, IntoResponse}};
+use axum::{body::Body, extract::{Path, Request, State}, http::{StatusCode}, response::{Html, IntoResponse}};
 use tower_http::services::ServeFile;
 use uuid::Uuid;
 use tower::util::ServiceExt;
@@ -9,10 +9,9 @@ pub async fn serve_index(State(state): State<AppState>) -> impl IntoResponse {
     Html(state.index_html.as_ref().clone())
 }
 
-pub async fn serve_track(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
+pub async fn serve_track(State(state): State<AppState>, Path(id): Path<Uuid>, request: Request<Body>) -> impl IntoResponse {
     match SqliteTracksRepository::new().by_id_fetch(state.pool, id).await {
         Ok(Some(track)) => {
-            let request: Request<()> = Request::default();
             let serve_result = ServeFile::new(track.file_path()).oneshot(request).await;
 
             match serve_result {
@@ -30,4 +29,5 @@ pub async fn serve_track(State(state): State<AppState>, Path(id): Path<Uuid>) ->
         },
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response(),
     }
+
 }
