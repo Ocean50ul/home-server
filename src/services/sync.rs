@@ -2,7 +2,6 @@ use std::{collections::{HashMap, HashSet}, path::PathBuf};
 
 use chrono::{Local, NaiveDateTime};
 use futures::TryStreamExt;
-use serde::de;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -84,8 +83,6 @@ impl<'a> MusicLibSyncService<'a> {
 
         let mut tx = self.pool.begin().await?;
         let mut report = SyncServiceReport::new(Local::now().naive_local());
-
-        println!("\n\n{:?}\n{:?}\n\n", additions, deletions);
         
         // Apply deletions first.
         if !deletions.is_empty() {
@@ -180,8 +177,6 @@ impl<'a> MusicLibSyncService<'a> {
 
     async fn find_new_files(&self, music_lib_files: &Vec<AudioFileDescriptor>) -> Result<PendingAdditions, SyncServiceError> {
         let mut new_files = PendingAdditions::new();
-
-        println!("\n\nmusic lib: {:?}\ndb_cache: {:?}\n\n", music_lib_files, self.db_cache.tracks);
 
         for file in music_lib_files {
             if self.db_cache.tracks.contains_key(&file.path) {
@@ -357,7 +352,7 @@ pub mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::{domain::audiofile::{AudioFileMetadata, AudioFileType}, services::test_helpers::*, utils::{audio_fixtures::{load_fixtures, AudioFixture}, normalizations::{normalize_name, normalize_path}}};
+    use crate::{domain::audiofile::{AudioFileMetadata, AudioFileType}, services::test_helpers::*, utils::{audio_fixtures::{load_fixtures, AudioFixture}, normalizations::{normalize_path}}};
 
     struct TestContext {
         pool: SqlitePool,
@@ -391,7 +386,6 @@ pub mod tests {
             let mut new_paths = Vec::new();
 
             for src in selected {
-                println!("{:?}", src);
                 // safe unwrap since it was already unwrapped in the loop above
                 let dest = self.temp_dir.path().join(&src.file_name);
                 let src = PathBuf::from(format!("./test_fixtures/files/{}", &src.file_name));
@@ -400,7 +394,6 @@ pub mod tests {
                 new_paths.push(normalize_path(&dest));
             }
 
-            println!("{:?}", new_paths);
             self.fixtures = new_paths;
             Ok(self)
         }
@@ -443,16 +436,12 @@ pub mod tests {
 
         ctx.trk_repo.save(&ctx.pool, &trk1).await?;
 
-        println!("{:?}\n{:?}\n{:?}\n", chevelle, wonder_whats_next, trk1);
-
         // The state is: one artist, one album and one track.
         // Expected behavior - sync service does nothing.
 
         // Create sync service and run it
         let sync_service = MusicLibSyncService::new(&ctx.pool, ctx.temp_dir.path().to_path_buf()).await?;
         let report = sync_service.synchronize().await?;
-
-        println!("{:?}", report);
 
         // Assert that report has nothing.
         assert_eq!(report.deleted_albums.deleted_ids.len(), 0);
