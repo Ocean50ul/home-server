@@ -58,7 +58,7 @@ pub(crate) mod test_helpers {
     use sqlx::{Error as SqlxError, SqlitePool};
     use tempfile::{NamedTempFile, Builder};
 
-    use crate::{domain::{audiofile::AudioFileMetadata, ValidationError}, repository::RepositoryError, services::{ScanError, SyncServiceError}, utils::{audio_fixtures::FixturesLoadingError, normalizations::normalize_name}};
+    use crate::{domain::{ValidationError}, repository::RepositoryError, services::{ScanError, SyncServiceError}, utils::{audio_fixtures::FixturesLoadingError}};
 
     pub const TEST_FIXTURES_JSON_PATH: &str = r"./audio_fixtures.json";
     

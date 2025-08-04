@@ -32,3 +32,11 @@ Different resample policies are cooming soon.
 ## Target OS
 
 The only target OS right now is **WINDOWS**. 
+
+## Test
+
+In order to run test, you will need to prepare fixtures. That includes creating some dummy files with metadata, as well as dirs with stripped permissions.
+
+`cargo run prepare --dev` will create everything necessary for tests to run.
+
+`cargo run prepare --clenup` will clean the fixtures and dirs. This might fail tho, and if so you will end up with some dirs with stripped permissions. All the stripped dir paths should be inside `./test_fixtures/fixtures_state.json`. Sorry for inconviniece.
