@@ -29,6 +29,8 @@ Server is using resampler, since html `<audio>` tag cant handle anything above 8
 
 Different resample policies are cooming soon.
 
+Also video transcoding \ remuxing is coming. 
+
 ## Target OS
 
 The only target OS right now is **WINDOWS**. 
