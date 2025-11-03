@@ -3,9 +3,10 @@
 Rust-based home server.
 
 Features:
-[x] Music lib.
-[] Video lib.
-[] Files sharing.
+
+- [x] Serving music lib.
+- [ ] Serving video lib.
+- [ ] Files sharing.
 
 
 ## Server Startup.
