@@ -1,3 +1,13 @@
+## Home server.
+
+Rust-based home server.
+
+Features:
+[x] Music lib.
+[] Video lib.
+[] Files sharing.
+
+
 ## Server Startup.
 
 Right now there is the only one way to try the server: clone the repository, build it and prepare the environment.
@@ -41,4 +51,4 @@ In order to run test, you will need to prepare fixtures. That includes creating 
 
 `cargo run prepare --dev` will create everything necessary for tests to run.
 
-`cargo run prepare --clenup` will clean the fixtures and dirs. This might fail tho, and if so you will end up with some dirs with stripped permissions. All the stripped dir paths should be inside `./test_fixtures/fixtures_state.json`. Sorry for inconviniece.
+`cargo run prepare --cleanup` will clean the fixtures and dirs. This might fail tho, and if so you will end up with some dirs with stripped permissions. All the stripped dir paths should be inside `./test_fixtures/fixtures_state.json`. Sorry for inconvenience.
